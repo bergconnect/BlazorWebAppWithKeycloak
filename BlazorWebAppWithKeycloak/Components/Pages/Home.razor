@@ -1,7 +1,28 @@
-﻿@page "/"
+@page "/"
 
 <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Welkom</h1>
 
-Welcome to your new app.
+<AuthorizeView>
+    <Authorized>
+        <div class="alert alert-success" role="alert">
+            <h4 class="alert-heading">Ingelogd als @context.User.Identity?.Name</h4>
+            <p>U bent succesvol ingelogd via Keycloak.</p>
+            <hr />
+            <p class="mb-0">
+                Bekijk uw <a href="/claims" class="alert-link">claims pagina</a> voor alle token informatie.
+            </p>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-info" role="alert">
+            <h4 class="alert-heading">Niet ingelogd</h4>
+            <p>U bent momenteel niet ingelogd.</p>
+            <hr />
+            <p class="mb-0">
+                <a href="/login" class="btn btn-primary">Inloggen via Keycloak</a>
+            </p>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>

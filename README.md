@@ -26,7 +26,7 @@ Deze README beschrijft de implementatie van Keycloak OIDC-authenticatie in de Bl
 
 ## Vereisten
 
-- .NET 9
+- .NET 10
 - Een draaiende Keycloak-instantie (zie `Keycloak_Installatiegids.md`)
 - Een geconfigureerde Keycloak realm en client (zie installatiegids stap 2 en 3)
 
@@ -65,7 +65,7 @@ BlazorWebAppWithKeycloak/
 De implementatie vereist één extra pakket bovenop de standaard Blazor Web App template:
 
 ```xml
-<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.0" />
+<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.4" />
 ```
 
 ---

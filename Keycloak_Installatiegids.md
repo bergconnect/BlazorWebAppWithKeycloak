@@ -11,9 +11,6 @@
 3. [Client toevoegen: blazor-web-app](#3-client-toevoegen-blazor-web-app)
 4. [Client rollen aanmaken: admin & user](#4-client-rollen-aanmaken-admin--user)
 5. [Gebruiker aanmaken en rol toewijzen](#5-gebruiker-aanmaken-en-rol-toewijzen)
-6. [Zelfregistratie inschakelen](#6-zelfregistratie-inschakelen)
-7. [Standaard rol toewijzen aan nieuwe gebruikers](#7-standaard-rol-toewijzen-aan-nieuwe-gebruikers)
-8. [Rollen testen en verifiëren](#8-rollen-testen-en-verifiëren)
 
 ---
 
@@ -109,39 +106,52 @@ Log in met:
 
 Een realm is een afgeschermde omgeving met eigen gebruikers, rollen en clients. De standaard `master`-realm is uitsluitend voor Keycloak-beheer; maak altijd een aparte realm voor je applicatie.
 
-### Stap 1 — Realmkeuzemenu openen
+### Stap 1 — Naar Manage realms navigeren
 
-Klik linksboven in de navigatiebalk op de naam van de huidige realm (`master`). Er verschijnt een dropdown.
+Na het inloggen op de beheerconsole zie je linksboven in de navigatie **Keycloak** met het label **Current realm**. Daaronder staat het menu-item **Manage realms**.
+
+Klik op **Manage realms** in het linkermenu.
 
 ```
-┌─────────────────────────┐
-│  master              ▼  │
-├─────────────────────────┤
-│  + Create realm         │
-└─────────────────────────┘
+┌─────────────────────────────────┐
+│  homelab   [Current realm]      │
+├─────────────────────────────────┤
+│  Manage realms                  │
+├─────────────────────────────────┤
+│  Manage                         │
+│    Clients                      │
+│    Client scopes                │
+│    Realm roles                  │
+│    Users                        │
+│    Groups                       │
+│    Sessions                     │
+└─────────────────────────────────┘
 ```
+
+> **Let op:** linksboven toont Keycloak de naam van de actieve realm met het label **Current realm** ernaast. Zorg dat hier `homelab` staat voordat je verder gaat — zo weet je zeker dat je in de juiste realm werkt.
 
 ### Stap 2 — Nieuwe realm aanmaken
 
-Klik op **Create realm**.
+Je ziet het **Manage realms**-overzicht met de bestaande `master`-realm. Klik rechtsboven op de blauwe knop **Create realm**.
 
-Vul het formulier in:
-
-| Veld        | Waarde    |
-|-------------|-----------|
-| Realm name  | `homelab` |
-| Enabled     | `ON`      |
+| Veld         | Waarde    |
+|--------------|-----------|
+| Realm name   | `homelab` |
+| Enabled      | `ON`      |
 
 Klik op **Create**.
 
 ### Stap 3 — Controleren
 
-Na aanmaken schakel je automatisch over naar de `homelab`-realm. Dit zie je linksboven:
+Na het aanmaken schakel je automatisch over naar de `homelab`-realm. Dit is zichtbaar doordat het label linksboven verandert van **Current realm** naar **homelab**.
+
+Je kunt dit ook verifiëren via **Manage realms** — de lijst toont nu zowel `master` als `homelab`:
 
 ```
-┌─────────────────────────┐
-│  homelab             ▼  │
-└─────────────────────────┘
+Name       Display name
+──────────────────────────
+master     Keycloak
+homelab
 ```
 
 De realm-overzichtspagina toont statistieken (0 gebruikers, 0 clients, etc.).
@@ -150,51 +160,67 @@ De realm-overzichtspagina toont statistieken (0 gebruikers, 0 clients, etc.).
 
 ## 3. Client toevoegen: blazor-web-app
 
-Een client vertegenwoordigt de Blazor-applicatie die gebruik maakt van Keycloak voor authenticatie.
+Een client vertegenwoordigt de applicatie die gebruik maakt van Keycloak voor authenticatie.
 
 ### Stap 1 — Naar Clients navigeren
 
-Klik in het linkermenu op **Clients**.
+Klik in het linkermenu onder **Manage** op **Clients**.
+
+De **Clients**-pagina opent met drie tabbladen bovenaan:
+
+```
+[ Clients list ]  [ Initial access token ]  [ Client registration ]
+```
+
+Je ziet de standaard meegeleverde clients zoals `account`, `account-console` en `admin-cli`.
 
 ### Stap 2 — Nieuwe client aanmaken
 
-Klik op **Create client** (rechtsboven).
+Klik op de blauwe knop **Create client** (naast de zoekbalk).
 
-#### Pagina 1 — General Settings
+Er opent een wizard met drie stappen.
 
-| Veld            | Waarde              |
-|-----------------|---------------------|
-| Client type     | `OpenID Connect`    |
-| Client ID       | `blazor-web-app`    |
-| Name            | `Blazor Web App`    |
-| Description     | `Blazor Server applicatie met Keycloak authenticatie` |
+#### Stap 2a — General Settings
 
-Klik op **Next**.
+| Veld            | Waarde                                    |
+|-----------------|-------------------------------------------|
+| Client type     | `OpenID Connect`                          |
+| Client ID       | `blazor-web-app`                                |
+| Name            | `Blazor Web App`                                |
+| Description     | `Webapplicatie met Keycloak authenticatie`|
 
-#### Pagina 2 — Capability Config
+Klik onderaan op **Next**.
 
-| Instelling               | Waarde |
-|--------------------------|--------|
-| Client authentication    | `ON`   |
-| Authorization            | `OFF`  |
-| Standard flow            | `ON`   |
-| Direct access grants     | `OFF`  |
+#### Stap 2b — Capability Config
 
-> **Client authentication ON** maakt dit een *confidential client* — de applicatie authenticeert zichzelf met een geheim bij het ophalen van tokens. Dit is vereist voor server-side Blazor.
+| Instelling               | Waarde | Toelichting                                                    |
+|--------------------------|--------|----------------------------------------------------------------|
+| Client authentication    | `ON`   | Maakt dit een *confidential client* met client secret          |
+| Authorization            | `OFF`  | Niet nodig voor standaard rolgebaseerde toegang                |
+| Standard flow            | `ON`   | Inlogstroom via browser (Authorization Code Flow)              |
+| Direct access grants     | `OFF`  | Uitsluitend inschakelen voor testdoeleinden via curl/Postman   |
 
-Klik op **Next**.
+> **Client authentication ON** zorgt dat de applicatie zichzelf authenticeert met een client secret bij het ophalen van tokens. Kies dit voor server-side webapplicaties.
 
-#### Pagina 3 — Login Settings
+Klik onderaan op **Next**.
 
-| Veld                        | Waarde                        |
-|-----------------------------|-------------------------------|
-| Root URL                    | `https://localhost:5001`      |
-| Home URL                    | `https://localhost:5001`      |
-| Valid redirect URIs         | `https://localhost:5001/*`    |
-| Valid post logout redirect URIs | `https://localhost:5001/` |
-| Web origins                 | `https://localhost:5001`      |
+#### Stap 2c — Login Settings
 
-Klik op **Save**.
+De URLs in dit scherm verwijzen naar de draaiende webapplicatie — in dit geval de Blazor Web App. Het poortnummer is het poortnummer waarop jouw applicatie lokaal bereikbaar is. Controleer dit in de launchsettings van je project (standaard `5001` voor HTTPS of `5000` voor HTTP in een .NET-project).
+
+| Veld                            | Waarde                         | Toelichting                                      |
+|---------------------------------|--------------------------------|--------------------------------------------------|
+| Root URL                        | `https://localhost:5001`       | Basis-URL van de Blazor Web App                  |
+| Home URL                        | `https://localhost:5001`       | Startpagina na inloggen                          |
+| Valid redirect URIs             | `https://localhost:5001/*`     | Toegestane callbacks na succesvolle login        |
+| Valid post logout redirect URIs | `https://localhost:5001/`      | Terugkeer-URL na uitloggen                       |
+| Web origins                     | `https://localhost:5001`       | Toegestane oorsprong voor CORS-verzoeken         |
+
+> **Poortnummer:** vervang `5001` door het poortnummer van jouw applicatie. Je vindt dit in `Properties/launchSettings.json` onder `applicationUrl`, of in de adresbalk van de browser wanneer je de applicatie lokaal opstart.
+
+> **Valid redirect URIs** bepaalt waarheen Keycloak na een succesvolle login mag doorsturen. De `*` staat alle paden onder je domein toe — beperk dit in productie tot specifieke paden.
+
+Klik onderaan op **Save**.
 
 ### Stap 3 — Client secret ophalen
 
@@ -207,83 +233,64 @@ Na het opslaan:
 Client secret:  xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
-Sla deze op in `appsettings.json` van de Blazor-applicatie:
+Sla deze op in de configuratie van je applicatie. Afhankelijk van het gebruikte framework:
 
-```json
-"Keycloak": {
-  "Authority":     "http://localhost:8080/realms/homelab",
-  "ClientId":      "blazor-web-app",
-  "ClientSecret":  "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-}
-```
+| Instelling    | Waarde                                          |
+|---------------|-------------------------------------------------|
+| Authority     | `http://localhost:8080/realms/homelab`          |
+| Client ID     | `blazor-web-app`                                      |
+| Client Secret | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`          |
 
 ### Stap 4 — Client rollen opnemen in het token
 
-Standaard worden client-rollen **niet** meegestuurd in het ID-token of access token. Keycloak plaatst ze in het token onder `resource_access.<client-id>.roles`, maar Blazor verwacht ze als een platte `roles`-claim. Onderstaande mapper zorgt voor die vertaling.
+Standaard worden client-rollen **niet** meegestuurd als platte claim in het ID-token of access token. Keycloak plaatst ze intern onder `resource_access.<client-id>.roles`. Onderstaande mapper vertaalt deze naar een eenvoudige `roles`-claim die door de meeste frameworks direct te gebruiken is.
 
 #### Navigeren naar de dedicated client scope
 
-1. Ga naar **Clients** → `blazor-web-app`
-2. Klik op het tabblad **Client scopes**
-3. Klik op de blauwe link **`blazor-web-app-dedicated`**
+1. Ga naar **Clients** in het linkermenu
+2. Klik op `blazor-web-app` in de lijst
+3. Klik op het tabblad **Client scopes**
+4. Klik op de blauwe link **`blazor-web-app-dedicated`** in de tabel
+
+Je komt nu op de pagina **Dedicated scopes** van de client. De breadcrumb bovenaan toont:
+
+```
+Clients  >  Client details  >  Dedicated scopes
+```
+
+De pagina toont twee tabbladen — **Mappers** en **Scope** — en meldt **No mappers** omdat er nog geen mappers zijn aangemaakt.
 
 > Dit is de *dedicated scope* die exclusief voor deze client geldt. Mappers die je hier toevoegt zijn alleen actief voor `blazor-web-app`.
 
 #### Mapper aanmaken
 
-4. Klik op **Add mapper** → **By configuration**
-5. Kies in de lijst **User Client Role**
+5. Klik op de knop **Configure a new mapper** (rechtsonder op de lege Mappers-pagina)
+6. Er verschijnt een lijst met mapper-types — kies **User Client Role**
 
-Vul de mapper in:
+Vul het formulier in:
 
-| Veld                     | Waarde            | Toelichting                                              |
-|--------------------------|-------------------|----------------------------------------------------------|
-| Name                     | `client-roles`    | Naam ter herkenning in de Keycloak-console               |
-| Client ID                | `blazor-web-app`  | Alleen rollen van déze client worden meegestuurd         |
-| Token Claim Name         | `roles`           | Naam van de claim in het token — moet overeenkomen met `RoleClaimType` in Blazor |
-| Claim JSON Type          | `String`          | Elke rol wordt als losse string-waarde meegestuurd       |
-| Add to ID token          | `ON`              | Blazor leest rollen uit het ID token                     |
-| Add to access token      | `ON`              | Vereist voor API-aanroepen met Bearer token              |
-| Add to userinfo          | `ON`              | Rollen beschikbaar via het UserInfo-endpoint             |
-| Multivalued              | `ON`              | Meerdere rollen per gebruiker mogelijk                   |
-
-Klik op **Save**.
-
-#### Werking controleren
-
-Na het opslaan kun je direct verifiëren of de mapper correct werkt:
-
-1. Klik op het tabblad **Client scopes** van `blazor-web-app`
-2. Klik rechtsboven op **Evaluate**
-3. Kies een testgebruiker en klik op **Generated ID token**
-4. Zoek in de JSON-output naar de `roles`-claim:
-
-```json
-{
-  "preferred_username": "jan.de.vries",
-  "roles": [
-    "user"
-  ]
-}
-```
-
-> Als de `roles`-claim ontbreekt, controleer dan of **Client ID** exact `blazor-web-app` is (hoofdlettergevoelig) en of **Multivalued** op `ON` staat.
-
-#### Aansluiting op Blazor
-
-Zorg dat `Program.cs` de claim-naam en rol-type correct configureert:
-
-```csharp
-options.ClaimActions.MapJsonKey("roles", "roles");
-
-options.TokenValidationParameters = new()
-{
-    NameClaimType = "preferred_username",
-    RoleClaimType = "roles"   // moet overeenkomen met Token Claim Name
-};
-```
+| Veld                           | Waarde           | Toelichting                                                         |
+|--------------------------------|------------------|---------------------------------------------------------------------|
+| Mapper type                    | `User Client Role` | Wordt automatisch ingevuld na de vorige stap                      |
+| Name                           | `client-roles`   | Naam ter herkenning in de Keycloak-console                          |
+| Client ID                      | `blazor-web-app` | Alleen rollen van déze client worden meegestuurd                    |
+| Client Role prefix             | *(leeg laten)*   | Optioneel voorvoegsel voor rolnamen — niet nodig voor standaard gebruik |
+| Multivalued                    | `ON`             | Meerdere rollen per gebruiker mogelijk                              |
+| Token Claim Name               | `roles`          | Naam van de claim in het token — gebruik deze naam in je applicatie |
+| Claim JSON Type                | `String`         | Elke rol wordt als losse string-waarde meegestuurd                  |
+| Add to ID token                | `ON`             | Applicatie leest rollen uit het ID token                            |
+| Add to access token            | `ON`             | Vereist voor API-aanroepen met Bearer token                         |
+| Add to lightweight access token | `OFF`           | Niet nodig voor standaard gebruik                                   |
+| Add to userinfo                | `ON`             | Rollen beschikbaar via het UserInfo-endpoint                        |
+| Add to token introspection     | `ON`             | Rollen zichtbaar bij token-validatie via het introspection-endpoint |
 
 Klik op **Save**.
+
+Na het opslaan verschijnt de mapper `client-roles` in de lijst onder het tabblad **Mappers**.
+
+#### Aansluiting op je applicatie
+
+Gebruik in je applicatie de claim-naam `roles` voor rolcontrole. De exacte configuratie hangt af van het framework, maar de claim-naam in het token is altijd `roles`.
 
 ---
 
@@ -367,339 +374,91 @@ Klik op **Create**.
 ### Stap 4 — Client rol toewijzen
 
 1. Klik op het tabblad **Role mapping**
-2. Klik op **Assign role**
-3. Klik linksboven op de filter-dropdown en kies **Filter by clients**
-4. Zoek op `blazor-web-app`
-5. Vink de gewenste rol aan — bijvoorbeeld `admin` voor een beheerder, of `user` voor een standaardgebruiker
-6. Klik op **Assign**
 
-**Verificatie:** onder het tabblad Role mapping zie je nu de toegewezen rol:
+   Je ziet de huidige rollen van de gebruiker. De knop **Assign role** heeft een pijltje waarmee je kunt kiezen tussen **Client roles** en **Realm roles**:
 
-```
-Role                          Source
-admin (blazor-web-app)        blazor-web-app
-```
+   ```
+   [ Assign role ▼ ]
+        ├── Client roles
+        └── Realm roles
+   ```
 
----
+2. Klik op de pijl naast **Assign role** en kies **Client roles**
 
-## 6. Zelfregistratie inschakelen
+   Er opent een venster **Assign Client roles to [gebruikersnaam]** met een lijst van alle beschikbare client rollen. De lijst toont rollen van alle clients, gegroepeerd op **Client ID**:
 
-Zelfregistratie laat nieuwe gebruikers zichzelf aanmelden via een registratiepagina, zonder tussenkomst van een beheerder.
+   ```
+   Name                  Client ID          Description
+   ─────────────────────────────────────────────────────────
+   delete-account        account            role_delete-account
+   manage-account        account            role_manage-account
+   ...
+   admin                 blazor-web-app     Volledige beheertoegang...
+   user                  blazor-web-app     Standaard gebruikersrol...
+   ```
 
-### Stap 1 — Realm Settings openen
+3. Scroll naar beneden tot de rollen met **Client ID** `blazor-web-app` en vink de gewenste rol aan:
+   - `user` voor een standaard gebruiker
+   - `admin` voor een beheerder
 
-Klik in het linkermenu op **Realm settings**.
+4. Klik op **Assign**
 
-### Stap 2 — Login-tab openen
-
-Klik op het tabblad **Login**.
-
-### Stap 3 — Registratie inschakelen
-
-Zet de volgende instellingen:
-
-| Instelling               | Waarde | Toelichting                                         |
-|--------------------------|--------|-----------------------------------------------------|
-| User registration        | `ON`   | Toont de "Registreren"-link op de loginpagina       |
-| Email as username        | `ON`   | Gebruikers loggen in met e-mailadres                |
-| Forgot password          | `ON`   | Wachtwoord herstellen via e-mail                    |
-| Remember me              | `ON`   | "Onthoud mij"-optie op de loginpagina               |
-| Verify email             | `ON`   | Gebruiker moet e-mailadres bevestigen (aanbevolen)  |
-
-Klik op **Save**.
-
-### Stap 4 — Registratiepagina testen
-
-De registratiepagina is nu bereikbaar via:
+**Verificatie:** na het toewijzen zie je de rol in het overzicht onder Role mapping:
 
 ```
-http://localhost:8080/realms/homelab/protocol/openid-connect/registrations
-    ?client_id=blazor-web-app
-    &response_type=code
-    &redirect_uri=https://localhost:5001/
+Name                        Inherited    Description
+admin (blazor-web-app)      False
 ```
 
-Of via de normale loginpagina — onderaan staat nu de link **Register**.
+### Stap 5 — Werking van de rol mapper controleren
 
----
-
-## 7. Standaard rol toewijzen aan nieuwe gebruikers
-
-Nieuwe gebruikers die zich registreren krijgen standaard géén rollen. Met de onderstaande configuratie krijgt elke nieuwe gebruiker automatisch de `user`-rol van de `blazor-web-app`-client.
-
-### Stap 1 — Default roles configureren
-
-1. Klik in het linkermenu op **Realm settings**
-2. Klik op het tabblad **User registration**
-
-### Stap 2 — Default rol toewijzen
-
-1. Klik op **Assign role** (of **Add roles** — afhankelijk van Keycloak versie)
-2. Verander de filter linksboven naar **Filter by clients**
-3. Zoek op `blazor-web-app`
-4. Vink `user` aan
-5. Klik op **Assign**
-
-Het overzicht toont nu:
-
-```
-Default roles
-─────────────────────────────────────
-user (blazor-web-app)
-```
-
-### Stap 3 — Werking verifiëren
-
-1. Open een incognitovenster
-2. Ga naar `http://localhost:8080/realms/homelab/account`
-3. Klik op **Register** en maak een testgebruiker aan
-4. Ga terug naar de Keycloak Admin Console → **Users** → selecteer de nieuwe gebruiker
-5. Klik op **Role mapping** — de rol `user (blazor-web-app)` staat er automatisch bij
-
----
-
-## 8. Rollen testen en verifiëren
-
-Er zijn vier manieren om te controleren of een gebruiker de juiste rollen heeft: via de Keycloak-beheerconsole, via de ingebouwde Evaluate-tool, via een raw JWT-token, en via de Blazor-applicatie zelf.
-
----
-
-### 8.1 Verificatie in de Keycloak Admin Console
-
-Dit is de snelste controle — direct in de beheerconsole.
-
-1. Ga naar `http://localhost:8080/admin` en zorg dat je in de **homelab**-realm zit
-2. Klik in het linkermenu op **Users**
-3. Klik op de gebruiker die je wilt controleren
-4. Klik op het tabblad **Role mapping**
-
-Je ziet twee secties:
-
-```
-Assigned roles
-──────────────────────────────────────────────
-user (blazor-web-app)        blazor-web-app
-
-Effective roles
-──────────────────────────────────────────────
-user (blazor-web-app)        blazor-web-app
-```
-
-> **Assigned roles** = direct toegewezen rollen.
-> **Effective roles** = alle rollen inclusief geërfde rollen via Composite Roles.
-
----
-
-### 8.2 Token inspecteren via de Evaluate-tool
-
-Keycloak heeft een ingebouwde tool waarmee je precies kunt zien welk token een gebruiker ontvangt, inclusief alle claims en rollen — zonder dat je hoeft in te loggen als die gebruiker.
+Nu de gebruiker een rol heeft, kun je via de Evaluate-tool controleren of de rol correct in het token terechtkomt.
 
 1. Ga naar **Clients** → `blazor-web-app`
 2. Klik op het tabblad **Client scopes**
-3. Klik op de knop **Evaluate** (rechtsboven)
-4. Vul in bij **User**: de gebruikersnaam die je wilt testen (bijv. `jan.de.vries`)
-5. Klik op **Generated access token**
+3. Klik op het subtabblad **Evaluate** (naast **Setup**)
+4. Typ bij **Users** de gebruikersnaam (bijv. `jan.de.vries`) of selecteer deze uit de dropdown
+5. Laat **Target audience** leeg
 
-Er verschijnt een volledig gedecodeerd access token. Zoek in de JSON-output naar de `roles`-claim:
+Aan de rechterkant verschijnen vier links:
+
+```
+Effective protocol mappers
+Effective role scope mappings
+Generated access token
+Generated ID token          ← klik hier
+Generated user info
+```
+
+6. Klik op **Generated ID token**
+
+Het ID token wordt getoond als gedecodeerde JSON. Controleer of de `roles`-claim aanwezig is en de juiste waarden bevat:
 
 ```json
 {
-  "sub": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "preferred_username": "jan.de.vries",
-  "email": "jan@homelab.nl",
+  "iss": "http://192.168.x.x:8080/realms/homelab",
+  "aud": "blazor-web-app",
+  "typ": "ID",
+  "email_verified": true,
   "roles": [
-    "user"
-  ]
-}
-```
-
-Voor een admin-gebruiker zie je:
-
-```json
-{
-  "preferred_username": "admin.gebruiker",
-  "roles": [
-    "admin",
-    "user"
-  ]
-}
-```
-
-Klik ook op **Generated ID token** om het ID-token apart te inspecteren — dit is het token dat Blazor gebruikt voor de claimsidentiteit.
-
-> Als de `roles`-claim ontbreekt, is de token mapper niet correct ingesteld. Zie [Stap 4 van sectie 3](#stap-4--client-rollen-opnemen-in-het-token).
-
----
-
-### 8.3 Token decoderen via curl en jwt.io
-
-Je kunt een token ook buiten de browser opvragen en handmatig decoderen.
-
-#### Stap 1 — Direct access grants tijdelijk inschakelen
-
-Om via `curl` een token op te vragen moet **Direct access grants** aan staan op de client. Schakel dit tijdelijk in voor testdoeleinden:
-
-1. Ga naar **Clients** → `blazor-web-app` → tabblad **Settings**
-2. Zet **Direct access grants** op `ON`
-3. Klik op **Save**
-
-> Vergeet niet dit na het testen weer uit te zetten.
-
-#### Stap 2 — Token ophalen via curl
-
-```bash
-curl -s -X POST \
-  http://localhost:8080/realms/homelab/protocol/openid-connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=blazor-web-app" \
-  -d "client_secret=JOUW-CLIENT-SECRET" \
-  -d "username=jan.de.vries" \
-  -d "password=JOUW-WACHTWOORD" \
-  -d "grant_type=password" \
-  | jq .
-```
-
-De respons ziet er zo uit:
-
-```json
-{
-  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "id_token":     "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type":   "Bearer",
-  "expires_in":   300
-}
-```
-
-#### Stap 3 — Token decoderen
-
-**Optie A — Visueel via jwt.io:**
-
-1. Ga naar [https://jwt.io](https://jwt.io)
-2. Plak de waarde van `access_token` of `id_token` in het linkerveld
-3. Rechts verschijnt de gedecodeerde payload — zoek naar de `roles`-claim:
-
-```json
-{
-  "iss": "http://localhost:8080/realms/homelab",
+    "user",
+    "manage-account",
+    "manage-account-links",
+    "view-profile"
+  ],
+  "name": "Jan de Vries",
   "preferred_username": "jan.de.vries",
-  "roles": ["user"]
+  "given_name": "Jan",
+  "family_name": "de Vries"
 }
 ```
 
-**Optie B — Direct in de terminal met curl en jq:**
+> De claim bevat naast de eigen rol (`user`) ook standaard account-rollen zoals `manage-account` en `view-profile`. Dit is normaal gedrag van Keycloak.
 
-```bash
-# Sla het token op in een variabele
-TOKEN=$(curl -s -X POST \
-  http://localhost:8080/realms/homelab/protocol/openid-connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=blazor-web-app" \
-  -d "client_secret=JOUW-CLIENT-SECRET" \
-  -d "username=jan.de.vries" \
-  -d "password=JOUW-WACHTWOORD" \
-  -d "grant_type=password" \
-  | jq -r .access_token)
-
-# Decodeer de payload (middelste deel van het JWT)
-echo $TOKEN | cut -d'.' -f2 | base64 --decode 2>/dev/null | jq .
-```
-
-Verwachte output voor een gebruiker met de `user`-rol:
-
-```json
-{
-  "iss": "http://localhost:8080/realms/homelab",
-  "preferred_username": "jan.de.vries",
-  "email": "jan@homelab.nl",
-  "roles": [
-    "user"
-  ]
-}
-```
-
-Alleen de `roles`-claim tonen:
-
-```bash
-echo $TOKEN | cut -d'.' -f2 | base64 --decode 2>/dev/null | jq '.roles'
-```
-
-Output:
-
-```json
-[
-  "user"
-]
-```
-
-> **Tip voor macOS:** gebruik `base64 -D` in plaats van `base64 --decode`.
+> Als de `roles`-claim ontbreekt, controleer dan of **Client ID** in de mapper exact `blazor-web-app` is (hoofdlettergevoelig) en of **Multivalued** op `ON` staat. Zie [sectie 3 stap 4](#3-client-toevoegen-blazor-web-app).
 
 ---
 
-### 8.4 Rollen testen in de Blazor-applicatie
-
-Als de Blazor-applicatie al draait, kun je rollen end-to-end testen. Het `/dashboard` uit het eerder opgeleverde project toont al alle claims inclusief de `roles`-waarden.
-
-Voor een gerichte rolcontrole kun je een eenvoudige testpagina toevoegen:
-
-```razor
-@page "/rol-test"
-@attribute [Authorize]
-@inject BlazorKeycloak.Services.UserInfoService UserInfo
-
-<h3>Rolcontrole</h3>
-
-<p>Ingelogd als: <strong>@UserInfo.UserName</strong></p>
-
-<table class="table table-bordered w-auto">
-    <thead class="table-dark">
-        <tr><th>Rol</th><th>Toegang</th></tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td><code>admin</code></td>
-            <td>@(UserInfo.IsInRole("admin") ? "✅ Ja" : "❌ Nee")</td>
-        </tr>
-        <tr>
-            <td><code>user</code></td>
-            <td>@(UserInfo.IsInRole("user") ? "✅ Ja" : "❌ Nee")</td>
-        </tr>
-    </tbody>
-</table>
-
-<h4 class="mt-4">Alle rollen uit token:</h4>
-<ul>
-    @foreach (var rol in UserInfo.Roles)
-    {
-        <li><code>@rol</code></li>
-    }
-</ul>
-```
-
-Voeg de pagina toe aan de navigatie in `MainLayout.razor`:
-
-```razor
-<AuthorizeView>
-    <Authorized>
-        <li class="nav-item">
-            <a class="nav-link" href="/rol-test">🧪 Roltest</a>
-        </li>
-    </Authorized>
-</AuthorizeView>
-```
-
----
-
-### 8.5 Overzicht testmethoden
-
-| Methode | Wat het toont | Geschikt voor |
-|---------|---------------|---------------|
-| Admin Console → Role mapping | Toegewezen en effectieve rollen | Snelle beheerderscheck |
-| Evaluate-tool in Keycloak | Exacte token-inhoud zonder inloggen | Debuggen van token mapper |
-| jwt.io | Visueel gedecodeerde token payload | Handmatige token-inspectie |
-| `curl` + `jq` | Token en claims via de commandoregel | Scripting en automatisering |
-| Blazor `/rol-test` | End-to-end rolcontrole in de app | Verificatie vanuit de applicatie |
-
----
 
 ## Bijlage A — Samenvatting configuratie
 
@@ -707,12 +466,12 @@ Voeg de pagina toe aan de navigatie in `MainLayout.razor`:
 |------------------------|---------------------------------------|
 | Keycloak URL           | `http://localhost:8080`               |
 | Realm                  | `homelab`                             |
-| Client ID              | `blazor-web-app`                      |
+| Client ID              | `blazor-web-app`                            |
 | Client type            | Confidential (OpenID Connect)         |
 | Rollen                 | `admin`, `user`                       |
 | Token claim voor rollen| `roles`                               |
 | Registratie            | Ingeschakeld                          |
-| Standaard rol          | `user` (blazor-web-app)               |
+| Standaard rol          | `user` (blazor-web-app)                     |
 
 ### Handige URLs
 
@@ -749,13 +508,3 @@ docker compose up -d
 ```
 
 ---
-
-## Bijlage C — Veelvoorkomende problemen
-
-| Probleem | Oorzaak | Oplossing |
-|----------|---------|-----------|
-| Loginpagina niet bereikbaar | Container nog niet opgestart | Wacht 30-60 seconden, controleer logs |
-| `Invalid redirect_uri` | Redirect URI niet toegevoegd aan client | Voeg `https://localhost:5001/*` toe bij Valid redirect URIs |
-| Rollen komen niet aan in Blazor | Token mapper ontbreekt of verkeerd geconfigureerd | Zie [Stap 4 van sectie 3](#stap-4--client-rollen-opnemen-in-het-token) |
-| Nieuwe gebruiker heeft geen rol | Default role niet ingesteld | Zie [sectie 7](#7-standaard-rol-toewijzen-aan-nieuwe-gebruikers) |
-| Client secret verlopen | Secret geregenereerd in Keycloak | Kopieer nieuw secret via Clients → Credentials |

@@ -34,11 +34,11 @@ jobs:
            path: ${{ env.BUILD_WORKING_DIRECTORY }}
 
       - name: Build and publish container image
-        run: dotnet publish -c Release /t:PublishContainer
+        run: dotnet publish -c Release /t:PublishContainer -p:ContainerPush=true
         working-directory: ${{ env.BUILD_WORKING_DIRECTORY }}
         env:
           SDK_CONTAINER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
           SDK_CONTAINER_REPOSITORY: ${{ secrets.DOCKER_REPOSITORY }}
-          SDK_CONTAINER_IMAGE_TAG: ${{ steps.nbgv.outputs.SemVer2 }}
+          SDK_CONTAINER_IMAGE_TAG: ${{ steps.nbgv.outputs.SemVer2 }},latest
           SDK_CONTAINER_REGISTRY_UNAME: ${{ secrets.DOCKER_USER }}
           SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.DOCKER_PASSWORD }}

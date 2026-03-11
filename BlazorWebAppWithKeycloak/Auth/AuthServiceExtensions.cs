@@ -1,9 +1,8 @@
-﻿using BlazorWebAppWithKeycloak.Models;
-using Microsoft.AspNetCore.Authentication.Cookies;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
 
-namespace BlazorWebAppWithKeycloak.Extentions;
+namespace BlazorWebAppWithKeycloak.Auth;
 
 /// <summary>
 /// Extension methods op <see cref="IServiceCollection"/> voor de

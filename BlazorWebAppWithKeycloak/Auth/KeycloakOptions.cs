@@ -1,4 +1,4 @@
-﻿namespace BlazorWebAppWithKeycloak.Models;
+﻿namespace BlazorWebAppWithKeycloak.Auth;
 
 /// <summary>
 /// Sterk-getypeerde configuratie voor de Keycloak OIDC-verbinding.

@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 
-namespace BlazorWebAppWithKeycloak.Extentions;
+namespace BlazorWebAppWithKeycloak.Auth;
 
 /// <summary>
 /// Extension methods op <see cref="IEndpointRouteBuilder"/> voor de

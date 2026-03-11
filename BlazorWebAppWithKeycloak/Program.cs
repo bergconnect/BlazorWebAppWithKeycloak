@@ -1,5 +1,5 @@
+using BlazorWebAppWithKeycloak.Auth;
 using BlazorWebAppWithKeycloak.Components;
-using BlazorWebAppWithKeycloak.Extentions;
 
 var builder = WebApplication.CreateBuilder(args);
 

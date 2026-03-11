@@ -559,3 +559,150 @@ docker compose up -d
 ```
 
 ---
+
+## Bijlage C — Realm exporteren en importeren via Docker Compose
+
+Door de realm te exporteren en als bestand mee te geven aan Docker Compose wordt de volledige Keycloak-configuratie (realm, client, rollen, mappers) reproduceerbaar. Bij het opnieuw opstarten van de container wordt de realm automatisch aangemaakt zonder handmatige stappen in de beheerconsole.
+
+---
+
+### Stap 1 — Realm exporteren uit een draaiende container
+
+Voer het exportcommando uit binnen de draaiende Keycloak-container. Keycloak schrijft het exportbestand naar een map binnen de container.
+
+```bash
+docker exec -it keycloak /opt/keycloak/bin/kc.sh export \
+  --dir /opt/keycloak/data/export \
+  --realm homelab \
+  --users realm_file
+```
+
+| Parameter     | Waarde             | Toelichting                                                              |
+|---------------|--------------------|--------------------------------------------------------------------------|
+| `--dir`       | `/opt/keycloak/data/export` | Map binnen de container waar het exportbestand wordt opgeslagen |
+| `--realm`     | `homelab`          | Naam van de realm om te exporteren                                       |
+| `--users`     | `realm_file`       | Gebruikers worden meegenomen in hetzelfde bestand als de realm           |
+
+> **Let op:** het exportcommando start tijdelijk een tweede Keycloak-proces in de container. Wacht tot het proces zichzelf afsluit (je ziet `Export finished successfully` in de output).
+
+---
+
+### Stap 2 — Exportbestand kopiëren naar de host
+
+Het exportbestand staat nu in het Docker-volume. Kopieer het naar de projectmap op de host:
+
+```bash
+docker cp keycloak:/opt/keycloak/data/export/homelab-realm.json ./homelab-realm.json
+```
+
+Controleer of het bestand aanwezig is:
+
+```bash
+ls -lh homelab-realm.json
+```
+
+---
+
+### Stap 3 — Projectstructuur aanpassen
+
+Maak een map aan voor de realm-bestanden en plaats het exportbestand daarin:
+
+```bash
+mkdir -p keycloak/import
+mv homelab-realm.json keycloak/import/
+```
+
+De projectstructuur ziet er dan als volgt uit:
+
+```
+keycloak-local/
+├── docker-compose.yml
+└── keycloak/
+    └── import/
+        └── homelab-realm.json
+```
+
+---
+
+### Stap 4 — `docker-compose.yml` aanpassen
+
+Pas het `docker-compose.yml` bestand aan zodat de importmap als volume wordt gemount en Keycloak bij het starten automatisch de realm importeert:
+
+```yaml
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.5
+    container_name: keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_LOG_LEVEL: INFO
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak/import:/opt/keycloak/data/import:ro
+    restart: unless-stopped
+
+volumes:
+  keycloak_data:
+```
+
+| Wijziging | Toelichting |
+|-----------|-------------|
+| `--import-realm` aan `command` toegevoegd | Instrueert Keycloak om bij het opstarten alle `.json`-bestanden in `/opt/keycloak/data/import` te importeren |
+| `./keycloak/import:/opt/keycloak/data/import:ro` | Koppelt de lokale importmap aan de verwachte importlocatie binnen de container (read-only) |
+
+> **Bestaande realm wordt niet overschreven.** Keycloak importeert een realm alleen als deze nog niet bestaat. Wil je een bestaande realm opnieuw importeren, verwijder dan eerst het volume (`docker compose down -v`) zodat de container fris start.
+
+---
+
+### Stap 5 — Container opnieuw opbouwen
+
+Verwijder het bestaande volume zodat de import bij een schone start wordt uitgevoerd:
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+Controleer de logs om te bevestigen dat de import geslaagd is:
+
+```bash
+docker compose logs keycloak | grep -i import
+```
+
+Verwachte output:
+
+```
+... Imported realm homelab from file ...
+```
+
+---
+
+### Samenvatting workflow
+
+```
+Bestaande Keycloak
+        │
+        ▼
+docker exec ... kc.sh export --realm homelab
+        │
+        ▼
+docker cp ... homelab-realm.json
+        │
+        ▼
+Bestand in keycloak/import/ plaatsen
+        │
+        ▼
+docker-compose.yml: --import-realm + volume mount
+        │
+        ▼
+docker compose down -v && docker compose up -d
+        │
+        ▼
+Keycloak start met realm homelab automatisch aangemaakt
+```
+
+---

@@ -5,6 +5,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ContainerRepository>lvdberg/Demo</ContainerRepository>
+    <ContainerRegistry>git.berg-connect.nl</ContainerRegistry>
   </PropertyGroup>
 
   <ItemGroup>

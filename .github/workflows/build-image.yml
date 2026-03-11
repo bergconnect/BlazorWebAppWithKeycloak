@@ -38,10 +38,7 @@ jobs:
           dotnet publish \
             -c Release \
             /t:PublishContainer \
-            -p:ContainerRegistry=${{ secrets.DOCKER_REGISTRY }} \
-            -p:ContainerRepository=${{ secrets.DOCKER_REPOSITORY }} \
             -p:ContainerImageTags='"latest;${{ steps.nbgv.outputs.SemVer2 }}"' \
-            -p:ContainerPush=true \
             -p:ContainerRegistryUsername=${{ secrets.DOCKER_USER }} \
             -p:ContainerRegistryPassword=${{ secrets.DOCKER_PASSWORD }}
         working-directory: ${{ env.BUILD_WORKING_DIRECTORY }}

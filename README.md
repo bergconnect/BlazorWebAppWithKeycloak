@@ -26,7 +26,7 @@ Deze README beschrijft de implementatie van Keycloak OIDC-authenticatie in de Bl
 
 ## Vereisten
 
-- .NET 10
+- .NET 9
 - Een draaiende Keycloak-instantie (zie `Keycloak_Installatiegids.md`)
 - Een geconfigureerde Keycloak realm en client (zie installatiegids stap 2 en 3)
 
@@ -65,7 +65,7 @@ BlazorWebAppWithKeycloak/
 De implementatie vereist één extra pakket bovenop de standaard Blazor Web App template:
 
 ```xml
-<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.4" />
+<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.0" />
 ```
 
 ---
@@ -174,7 +174,7 @@ Extension method op `IEndpointRouteBuilder`. Registreert twee minimale API-endpo
 | Endpoint   | Method | Authenticatie    | Toelichting                                                      |
 |------------|--------|------------------|------------------------------------------------------------------|
 | `/login`   | GET    | `AllowAnonymous` | Roept `ChallengeAsync` aan met de `returnUrl` als `RedirectUri` |
-| `/logout`  | GET    | Verplicht        | Tekent uit bij zowel cookie- als OIDC-scheme                    |
+| `/logout`  | GET    | Verplicht        | Verwijdert de lokale cookie — Keycloak SSO-sessie blijft actief |
 
 Beide endpoints hebben `.DisableAntiforgery()` omdat ze HTTP-redirects schrijven en geen formulierdata verwerken.
 
@@ -233,6 +233,8 @@ Beveiligde pagina (`@attribute [Authorize]`, `@rendermode InteractiveServer`) be
 
 ## Stroom
 
+### Inloggen
+
 ```
 Gebruiker klikt Inloggen
         │
@@ -249,7 +251,7 @@ ChallengeAsync → HTTP 302 redirect naar Keycloak loginpagina
 Gebruiker logt in op Keycloak
         │
         ▼
-Keycloak redirect naar https://app/signin-oidc?code=...
+Keycloak redirect naar http://app/signin-oidc?code=...
         │
         ▼
 OIDC-middleware wisselt code in voor tokens (backchannel)
@@ -262,4 +264,26 @@ Cookie wordt aangemaakt, redirect naar returnUrl
         │
         ▼
 Gebruiker is ingelogd — AuthorizeView toont beveiligde inhoud
+```
+
+### Uitloggen
+
+```
+Gebruiker klikt Uitloggen
+        │
+        ▼
+NavigationManager.NavigateTo("/logout", forceLoad: true)
+        │
+        ▼
+GET /logout endpoint (AuthEndpointExtensions)
+        │
+        ▼
+SignOutAsync(Cookie) → lokale applicatiesessie beëindigd
+        │
+        ▼
+Redirect naar /
+        │
+        ▼
+Gebruiker is uitgelogd uit de applicatie
+Keycloak SSO-sessie blijft actief ─ opnieuw inloggen vereist geen Keycloak-loginscherm
 ```

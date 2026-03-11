@@ -39,10 +39,11 @@ public static class AuthEndpointExtensions
     {
         endpoints.MapGet("/logout", async (HttpContext ctx) =>
         {
+            // Alleen de lokale applicatiesessie (cookie) beëindigen.
+            // Het OIDC-scheme wordt bewust NIET uitgetekend zodat de
+            // Keycloak SSO-sessie actief blijft voor andere applicaties.
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            await ctx.SignOutAsync(
-                OpenIdConnectDefaults.AuthenticationScheme,
-                new AuthenticationProperties { RedirectUri = "/" });
+            ctx.Response.Redirect("/");
         })
         .RequireAuthorization()
         .DisableAntiforgery();

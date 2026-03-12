@@ -14,7 +14,7 @@ env:
 jobs:
 
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout Source Repository
@@ -34,11 +34,9 @@ jobs:
            path: ${{ env.BUILD_WORKING_DIRECTORY }}
 
       - name: Build and publish container image
-        run: |
-          dotnet publish \
-            -c Release \
-            /t:PublishContainer \
-            -p:ContainerImageTags='"latest;${{ steps.nbgv.outputs.SemVer2 }}"' \
-            -p:ContainerRegistryUsername=${{ secrets.DOCKER_USER }} \
-            -p:ContainerRegistryPassword=${{ secrets.DOCKER_PASSWORD }}
+        run: dotnet publish -c Release /t:PublishContainer -p:ContainerPush=true
         working-directory: ${{ env.BUILD_WORKING_DIRECTORY }}
+        env:
+          SDK_CONTAINER_IMAGE_TAG: ${{ steps.nbgv.outputs.SemVer2 }},latest
+          SDK_CONTAINER_REGISTRY_UNAME: ${{ secrets.DOCKER_USER }}
+          SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.DOCKER_PASSWORD }}

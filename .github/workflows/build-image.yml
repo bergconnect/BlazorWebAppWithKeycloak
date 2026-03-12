@@ -37,6 +37,6 @@ jobs:
         run: dotnet publish -c Release /t:PublishContainer -p:ContainerPush=true
         working-directory: ${{ env.BUILD_WORKING_DIRECTORY }}
         env:
-          SDK_CONTAINER_IMAGE_TAG: ${{ steps.nbgv.outputs.SemVer2 }},latest
+          SDK_CONTAINER_IMAGE_TAG: "${{ steps.nbgv.outputs.SemVer2 }},latest"
           SDK_CONTAINER_REGISTRY_UNAME: ${{ secrets.DOCKER_USER }}
           SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.DOCKER_PASSWORD }}

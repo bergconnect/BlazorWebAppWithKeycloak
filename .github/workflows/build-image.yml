@@ -33,13 +33,10 @@ jobs:
         with:
            path: ${{ env.BUILD_WORKING_DIRECTORY }}
 
-      - name: Login to Registry
-        run: echo "{{ secrets.DOCKER_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY }} -u ${{ secrets.DOCKER_USER }} --password-stdin
-      
       - name: Build and publish container image
-        run: |
-          dotnet publish \
-            -c Release \
-            /t:PublishContainer \
-            -p:ContainerImageTags='"latest;${{ steps.nbgv.outputs.SemVer2 }}"'
+        run: dotnet publish -c Release /t:PublishContainer -p:ContainerPush=true
         working-directory: ${{ env.BUILD_WORKING_DIRECTORY }}
+        env:
+          SDK_CONTAINER_IMAGE_TAG: ${{ steps.nbgv.outputs.SemVer2 }},latest
+          SDK_CONTAINER_REGISTRY_UNAME: ${{ secrets.DOCKER_USER }}
+          SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.DOCKER_PASSWORD }}

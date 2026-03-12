@@ -14,7 +14,7 @@ env:
 jobs:
 
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout Source Repository
@@ -33,12 +33,13 @@ jobs:
         with:
            path: ${{ env.BUILD_WORKING_DIRECTORY }}
 
+      - name: Login to Registry
+        run: echo "{{ secrets.DOCKER_PASSWORD }}" | docker login git.berg-connnect.nl -u ${{ secrets.DOCKER_USER }} --password-stdin
+      
       - name: Build and publish container image
         run: |
           dotnet publish \
             -c Release \
             /t:PublishContainer \
-            -p:ContainerImageTags='"latest;${{ steps.nbgv.outputs.SemVer2 }}"' \
-            -p:ContainerRegistryUsername=${{ secrets.DOCKER_USER }} \
-            -p:ContainerRegistryPassword=${{ secrets.DOCKER_PASSWORD }}
+            -p:ContainerImageTags='"latest;${{ steps.nbgv.outputs.SemVer2 }}"'
         working-directory: ${{ env.BUILD_WORKING_DIRECTORY }}

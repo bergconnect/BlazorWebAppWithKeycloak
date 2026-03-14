@@ -1,11 +1,16 @@
 using BlazorWebAppWithKeycloak.Auth;
 using BlazorWebAppWithKeycloak.Components;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ─── Razor Components / Blazor ───────────────────────────────────────────────
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/app/keys"))
+    .SetApplicationName("BlazorWebAppWithKeycloak");
 
 // ─── Authenticatie & autorisatie ─────────────────────────────────────────────
 builder.Services.AddKeycloakAuthentication();

@@ -12,12 +12,19 @@ public sealed class KeycloakOptions
     public const string SectionName = "Keycloak";
 
     /// <summary>
-    /// De OIDC Authority URL, inclusief realm-pad.
-    /// Voorbeeld: http://localhost:8080/realms/blazor
+    /// De publieke OIDC Authority URL, inclusief realm-pad.
+    /// Dit is de URL waarmee de browser communiceert (bv. http://localhost:8082/realms/homelab).
     /// </summary>
     [Required(AllowEmptyStrings = false)]
     [Url]
     public string Authority { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Optionele interne metadata-URL voor server-to-server communicatie.
+    /// Stel in wanneer de server Keycloak bereikt via een andere hostnaam dan de browser,
+    /// bv. http://keycloak:8082/realms/homelab/.well-known/openid-configuration in Docker.
+    /// </summary>
+    public string? MetadataAddress { get; init; }
 
     /// <summary>
     /// De Client ID zoals geconfigureerd in Keycloak.

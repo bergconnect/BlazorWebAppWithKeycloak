@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -13,6 +12,10 @@ public sealed class ConfigureKeycloakOptions
     : IConfigureNamedOptions<OpenIdConnectOptions>
 {
     private readonly KeycloakOptions _keycloak;
+
+    // ASP.NET Core mapt Keycloak-rollen naar dit claim type
+    private const string RoleClaimType =
+        "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
 
     public ConfigureKeycloakOptions(IOptions<KeycloakOptions> keycloakOptions)
     {
@@ -31,18 +34,21 @@ public sealed class ConfigureKeycloakOptions
         options.SaveTokens = true;
         options.GetClaimsFromUserInfoEndpoint = true;
 
+        if (!string.IsNullOrEmpty(_keycloak.MetadataAddress))
+            options.MetadataAddress = _keycloak.MetadataAddress;
+
         options.Scope.Clear();
         options.Scope.Add("openid");
         options.Scope.Add("profile");
         options.Scope.Add("email");
 
-        // Keycloak stuurt rollen als array in "realm_access.roles"
-        // MapJsonSubKey mapt het geneste pad correct naar de "roles" claim
-        options.ClaimActions.MapJsonSubKey("roles", "realm_access", "roles");
-
         options.RequireHttpsMetadata = _keycloak.RequireHttpsMetadata;
         options.TokenValidationParameters.NameClaimType = "preferred_username";
-        options.TokenValidationParameters.RoleClaimType = "roles";
+
+        // Rollen komen binnen via het standaard Microsoft role claim URI.
+        // Dit zorgt dat [Authorize(Roles="admin")] en <AuthorizeView Roles="admin">
+        // correct werken zonder extra claim mapping.
+        options.TokenValidationParameters.RoleClaimType = RoleClaimType;
 
         // ASP.NET Core 9+ stuurt standaard PAR-requests. Keycloak vereist
         // expliciete activering van PAR per client (Clients → Advanced →

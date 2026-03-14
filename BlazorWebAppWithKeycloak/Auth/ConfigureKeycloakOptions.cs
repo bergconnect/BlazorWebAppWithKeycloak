@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -36,12 +36,19 @@ public sealed class ConfigureKeycloakOptions
         options.Scope.Add("profile");
         options.Scope.Add("email");
 
-        // Keycloak stuurt rollen in "realm_access" claim
-        options.ClaimActions.MapJsonKey("roles", "realm_access");
+        // Keycloak stuurt rollen als array in "realm_access.roles"
+        // MapJsonSubKey mapt het geneste pad correct naar de "roles" claim
+        options.ClaimActions.MapJsonSubKey("roles", "realm_access", "roles");
 
         options.RequireHttpsMetadata = _keycloak.RequireHttpsMetadata;
         options.TokenValidationParameters.NameClaimType = "preferred_username";
         options.TokenValidationParameters.RoleClaimType = "roles";
+
+        // ASP.NET Core 9+ stuurt standaard PAR-requests. Keycloak vereist
+        // expliciete activering van PAR per client (Clients → Advanced →
+        // "Pushed authorization request required"). Schakel PAR hier uit
+        // totdat dit in Keycloak is geconfigureerd.
+        options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.Disable;
     }
 
     public void Configure(OpenIdConnectOptions options)

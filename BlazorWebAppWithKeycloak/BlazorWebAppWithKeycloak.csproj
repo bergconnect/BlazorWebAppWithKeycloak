@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+    <UserSecretsId>3f654a4f-8d0b-4ca0-b3e1-bb59639348b6</UserSecretsId>
   </PropertyGroup>
 
   <PropertyGroup>

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 
@@ -26,7 +26,9 @@ public static class AuthEndpointExtensions
     {
         endpoints.MapGet("/login", async (HttpContext ctx, string? returnUrl) =>
         {
-            var redirectUri = returnUrl ?? "/";
+            // Valideer returnUrl om open-redirect aanvallen te voorkomen
+            var redirectUri = IsLocalUrl(returnUrl) ? returnUrl! : "/";
+
             await ctx.ChallengeAsync(
                 OpenIdConnectDefaults.AuthenticationScheme,
                 new AuthenticationProperties { RedirectUri = redirectUri });
@@ -47,5 +49,18 @@ public static class AuthEndpointExtensions
         })
         .RequireAuthorization()
         .DisableAntiforgery();
+    }
+
+    /// <summary>
+    /// Controleert of de opgegeven URL een lokale (relatieve) URL is
+    /// om open-redirect kwetsbaarheden te voorkomen.
+    /// </summary>
+    private static bool IsLocalUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url))
+            return false;
+
+        // Moet beginnen met "/" maar niet met "//" (protocol-relative redirect)
+        return url.StartsWith('/') && !url.StartsWith("//");
     }
 }

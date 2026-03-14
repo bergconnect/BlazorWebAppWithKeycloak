@@ -1,5 +1,6 @@
 using BlazorWebAppWithKeycloak.Auth;
 using BlazorWebAppWithKeycloak.Components;
+using BlazorWebAppWithKeycloak.Services;
 using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,12 +9,30 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo("/app/keys"))
-    .SetApplicationName("BlazorWebAppWithKeycloak");
-
 // ─── Authenticatie & autorisatie ─────────────────────────────────────────────
 builder.Services.AddKeycloakAuthentication();
+
+// ─── Data Protection ─────────────────────────────────────────────────────────
+var keysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/app/keys";
+
+builder.Services
+    .AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
+    .SetApplicationName("BlazorWebAppWithKeycloak");
+
+// ─── API Client ───────────────────────────────────────────────────────────────
+// BearerTokenHandler leest het access token uit de huidige HTTP-context
+// en voegt het toe als Authorization Bearer header aan elke API-aanroep.
+builder.Services.AddScoped<BearerTokenHandler>();
+
+builder.Services
+    .AddHttpClient<HelloWorldApiClient>(client =>
+    {
+        var apiBaseUrl = builder.Configuration["ApiSettings:BaseUrl"]
+            ?? "http://localhost:5001";
+        client.BaseAddress = new Uri(apiBaseUrl);
+    })
+    .AddHttpMessageHandler<BearerTokenHandler>();
 
 var app = builder.Build();
 
@@ -26,10 +45,6 @@ else
 {
     app.UseExceptionHandler("/Error");
 
-    // Alleen HSTS en HTTPS-redirect inschakelen als de app daadwerkelijk
-    // via HTTPS bereikbaar is. Achter een HTTP-only reverse proxy of bij
-    // directe HTTP-toegang leidt dit anders tot redirect-loops en
-    // "Failed to determine the https port" warnings.
     if (builder.Configuration["ASPNETCORE_URLS"]?.Contains("https") == true ||
         builder.Configuration["ASPNETCORE_HTTPS_PORT"] != null)
     {

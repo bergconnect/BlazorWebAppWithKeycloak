@@ -101,10 +101,13 @@
     private string? _accessToken;
     private bool _showToken = false;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         var httpContext = HttpContextAccessor.HttpContext;
-        _accessToken = httpContext?.GetTokenAsync("access_token").GetAwaiter().GetResult();
+        if (httpContext is not null)
+        {
+            _accessToken = await httpContext.GetTokenAsync("access_token");
+        }
     }
 
     private void ToggleToken() => _showToken = !_showToken;

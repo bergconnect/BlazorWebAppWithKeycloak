@@ -37,19 +37,18 @@ public static class AuthServiceExtensions
             .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
             {
                 options.Cookie.HttpOnly = true;
-                // Op HTTP (geen HTTPS) moet SameSite op None of Lax staan zodat
-                // de browser de cookie meestuurt na redirect terug van Keycloak.
                 options.Cookie.SameSite = SameSiteMode.Lax;
                 options.Cookie.SecurePolicy = CookieSecurePolicy.None;
             })
             .AddOpenIdConnect(options =>
             {
-                // De correlation- en nonce-cookies die tijdens de OIDC-flow worden
-                // aangemaakt moeten terugkomen na redirect van Keycloak. Op HTTP
-                // is SecurePolicy.None vereist, anders weigert de browser ze mee te sturen.
-                options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                // Keycloak draait op een andere host dan de app (cross-site redirect).
+                // SameSite=Unspecified stuurt geen SameSite-attribuut mee waardoor
+                // oudere browsers en HTTP-omgevingen de cookie altijd doorsturen.
+                // SecurePolicy.None zorgt dat de Secure-flag ontbreekt op HTTP.
+                options.CorrelationCookie.SameSite = SameSiteMode.Unspecified;
                 options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.None;
-                options.NonceCookie.SameSite = SameSiteMode.Lax;
+                options.NonceCookie.SameSite = SameSiteMode.Unspecified;
                 options.NonceCookie.SecurePolicy = CookieSecurePolicy.None;
             }); // overige opties worden ingevuld door ConfigureKeycloakOptions
 

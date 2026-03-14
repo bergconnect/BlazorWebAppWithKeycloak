@@ -1,409 +1,226 @@
-# Keycloak Lokale Installatie & Configuratiegids
+# Keycloak Installatie & Configuratiegids
 
-> **Omgeving:** Docker Desktop · Keycloak 26.5.5 (dev mode) · Realm: `homelab` · Client: `blazor-web-app`
+> **Omgeving:** Docker · Keycloak 26+ (dev mode) · Realm: `homelab` · Client: `blazor-web-app`
 
 ---
 
 ## Inhoudsopgave
 
 1. [Keycloak opstarten via Docker Compose](#1-keycloak-opstarten-via-docker-compose)
-2. [Nieuwe realm aanmaken: homelab](#2-nieuwe-realm-aanmaken-homelab)
-3. [Client toevoegen: blazor-web-app](#3-client-toevoegen-blazor-web-app)
-4. [Client rollen aanmaken: admin & user](#4-client-rollen-aanmaken-admin--user)
-5. [Gebruiker aanmaken en rol toewijzen](#5-gebruiker-aanmaken-en-rol-toewijzen)
+2. [Realm importeren via realm-export.json](#2-realm-importeren-via-realm-exportjson)
+3. [Handmatig: nieuwe realm aanmaken](#3-handmatig-nieuwe-realm-aanmaken)
+4. [Handmatig: client toevoegen](#4-handmatig-client-toevoegen)
+5. [Handmatig: client rollen aanmaken](#5-handmatig-client-rollen-aanmaken)
+6. [Gebruiker aanmaken en rol toewijzen](#6-gebruiker-aanmaken-en-rol-toewijzen)
+7. [Bijlagen](#bijlagen)
 
 ---
 
 ## 1. Keycloak opstarten via Docker Compose
 
-### 1.1 Projectstructuur aanmaken
+De aanbevolen manier om Keycloak en de Blazor Web App samen te draaien is via de meegeleverde `docker-compose.yml`.
 
-Maak een nieuwe map aan voor de Keycloak-installatie:
+### 1.1 Vereisten
 
-```bash
-mkdir keycloak-local
-cd keycloak-local
+- Docker met Docker Compose
+- Het bestand `realm-export.json` in dezelfde map als `docker-compose.yml`
+- Een `.env` bestand met het client secret
+
+### 1.2 `.env` aanmaken
+
+Maak een `.env` bestand aan naast `docker-compose.yml`:
+
+```
+KEYCLOAK_CLIENT_SECRET=jouw-client-secret-hier
 ```
 
-### 1.2 `docker-compose.yml` aanmaken
+> Voeg `.env` toe aan `.gitignore` zodat het secret niet in versiebeheer terechtkomt.
 
-Maak het bestand `docker-compose.yml` aan met de volgende inhoud:
-
-```yaml
-services:
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.5.5
-    container_name: keycloak
-    environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_LOG_LEVEL: INFO
-    command: start-dev
-    # start-dev schakelt automatisch HTTP in en zet hostname-strict uit.
-    # KC_HTTP_ENABLED, KC_HOSTNAME_STRICT en KC_HOSTNAME_STRICT_HTTPS zijn
-    # overbodig in dev-mode vanaf Keycloak 26 en hoeven niet meer opgegeven te worden.
-    ports:
-      - "8080:8080"
-    volumes:
-      - keycloak_data:/opt/keycloak/data
-    restart: unless-stopped
-
-volumes:
-  keycloak_data:
-```
-
-> **Let op:** `start-dev` is uitsluitend bedoeld voor lokale ontwikkeling — het schakelt HTTP in, zet caches uit en vereenvoudigt de hostname-configuratie. Gebruik `start` met expliciete TLS-configuratie voor productie.
-
-### 1.3 Container starten
+### 1.3 Opstarten
 
 ```bash
 docker compose up -d
 ```
 
-Controleer of de container actief is:
+Keycloak is beschikbaar op `http://<host-ip>:8082` en de Blazor app op `http://<host-ip>:5000`.
 
-```bash
-docker compose ps
-```
-
-Verwachte output:
+### 1.4 Beheerconsole
 
 ```
-NAME        IMAGE                                   STATUS          PORTS
-keycloak    quay.io/keycloak/keycloak:26.5.5         Up              0.0.0.0:8080->8080/tcp
+http://<host-ip>:8082/admin
 ```
-
-Bekijk de opstartlogs om te bevestigen dat Keycloak gereed is:
-
-```bash
-docker compose logs -f keycloak
-```
-
-Wacht op de melding:
-
-```
-Keycloak 26.5.5 on JVM (powered by Quarkus ...) started in ...
-```
-
-### 1.4 Inloggen op de beheerconsole
-
-Open een browser en ga naar:
-
-```
-http://localhost:8080/admin
-```
-
-Log in met:
 
 | Veld       | Waarde  |
 |------------|---------|
 | Gebruiker  | `admin` |
 | Wachtwoord | `admin` |
 
----
-
-## 2. Nieuwe realm aanmaken: homelab
-
-Een realm is een afgeschermde omgeving met eigen gebruikers, rollen en clients. De standaard `master`-realm is uitsluitend voor Keycloak-beheer; maak altijd een aparte realm voor je applicatie.
-
-### Stap 1 — Naar Manage realms navigeren
-
-Na het inloggen op de beheerconsole zie je linksboven in de navigatie **Keycloak** met het label **Current realm**. Daaronder staat het menu-item **Manage realms**.
-
-Klik op **Manage realms** in het linkermenu.
-
-```
-┌─────────────────────────────────┐
-│  homelab   [Current realm]      │
-├─────────────────────────────────┤
-│  Manage realms                  │
-├─────────────────────────────────┤
-│  Manage                         │
-│    Clients                      │
-│    Client scopes                │
-│    Realm roles                  │
-│    Users                        │
-│    Groups                       │
-│    Sessions                     │
-└─────────────────────────────────┘
-```
-
-> **Let op:** linksboven toont Keycloak de naam van de actieve realm met het label **Current realm** ernaast. Zorg dat hier `homelab` staat voordat je verder gaat — zo weet je zeker dat je in de juiste realm werkt.
-
-### Stap 2 — Nieuwe realm aanmaken
-
-Je ziet het **Manage realms**-overzicht met de bestaande `master`-realm. Klik rechtsboven op de blauwe knop **Create realm**.
-
-| Veld         | Waarde    |
-|--------------|-----------|
-| Realm name   | `homelab` |
-| Enabled      | `ON`      |
-
-Klik op **Create**.
-
-### Stap 3 — Controleren
-
-Na het aanmaken schakel je automatisch over naar de `homelab`-realm. Dit is zichtbaar doordat het label linksboven verandert van **Current realm** naar **homelab**.
-
-Je kunt dit ook verifiëren via **Manage realms** — de lijst toont nu zowel `master` als `homelab`:
-
-```
-Name       Display name
-──────────────────────────
-master     Keycloak
-homelab
-```
-
-De realm-overzichtspagina toont statistieken (0 gebruikers, 0 clients, etc.).
+> **Let op:** wijzig het beheerderswachtwoord na eerste gebruik.
 
 ---
 
-## 3. Client toevoegen: blazor-web-app
+## 2. Realm importeren via realm-export.json
 
-Een client vertegenwoordigt de applicatie die gebruik maakt van Keycloak voor authenticatie.
+De meegeleverde `realm-export.json` bevat de volledige configuratie van de `homelab` realm inclusief client, rollen en mappers. Bij het opstarten van de container importeert Keycloak deze automatisch.
 
-### Stap 1 — Naar Clients navigeren
+### Werking
 
-Klik in het linkermenu onder **Manage** op **Clients**.
+De `docker-compose.yml` bevat twee sleutelinstellingen:
 
-De **Clients**-pagina opent met drie tabbladen bovenaan:
-
-```
-[ Clients list ]  [ Initial access token ]  [ Client registration ]
-```
-
-Je ziet de standaard meegeleverde clients zoals `account`, `account-console` en `admin-cli`.
-
-### Stap 2 — Nieuwe client aanmaken
-
-Klik op de blauwe knop **Create client** (naast de zoekbalk).
-
-Er opent een wizard met drie stappen.
-
-#### Stap 2a — General Settings
-
-| Veld            | Waarde                                     |
-|-----------------|--------------------------------------------|
-| Client type     | `OpenID Connect`                           |
-| Client ID       | `blazor-web-app`                           |
-| Name            | `Blazor Web App`                           |
-| Description     | `Webapplicatie met Keycloak authenticatie` |
-
-Klik onderaan op **Next**.
-
-#### Stap 2b — Capability Config
-
-| Instelling               | Waarde | Toelichting                                                  |
-|--------------------------|--------|--------------------------------------------------------------|
-| Client authentication    | `ON`   | Maakt dit een *confidential client* met client secret        |
-| Authorization            | `OFF`  | Niet nodig voor standaard rolgebaseerde toegang              |
-| Standard flow            | `ON`   | Inlogstroom via browser (Authorization Code Flow)            |
-| Direct access grants     | `OFF`  | Uitsluitend inschakelen voor testdoeleinden via curl/Postman |
-
-> **Client authentication ON** zorgt dat de applicatie zichzelf authenticeert met een client secret bij het ophalen van tokens. Kies dit voor server-side webapplicaties.
-
-Klik onderaan op **Next**.
-
-#### Stap 2c — Login Settings
-
-De URLs in dit scherm verwijzen naar de draaiende Blazor Web App. Het poortnummer komt uit `Properties/launchSettings.json` van het project.
-
-##### Lokale ontwikkeling (HTTP)
-
-De applicatie draait op `http://localhost:5000` (HTTP-profiel in `launchSettings.json`).
-
-| Veld                            | Waarde                                        | Toelichting                                                                   |
-|---------------------------------|-----------------------------------------------|-------------------------------------------------------------------------------|
-| Root URL                        | `http://localhost:5000`                       | Basis-URL van de Blazor Web App                                               |
-| Home URL                        | `http://localhost:5000`                       | Startpagina na inloggen                                                       |
-| Valid redirect URIs             | `http://localhost:5000/signin-oidc`           | Callback-URL na succesvolle login — afgehandeld door de OIDC-middleware       |
-| Valid post logout redirect URIs | `http://localhost:5000/signout-callback-oidc` | Terugkeer-URL na uitloggen — afgehandeld door de OIDC-middleware              |
-| Web origins                     | `http://localhost:5000`                       | Toegestane oorsprong voor CORS-verzoeken                                      |
-| Admin URL                       | `http://localhost:5000`                       | Wordt door Keycloak gebruikt voor backchannel-communicatie naar de applicatie |
-
-> **`/signin-oidc` en `/signout-callback-oidc`** zijn vaste paden die automatisch door de ASP.NET Core OpenID Connect-middleware worden afgehandeld. Deze hoeven niet als Razor-pagina of endpoint in de applicatie te bestaan.
-
-> **Web origins** voorkomt CORS-fouten bij aanroepen vanuit de browser naar Keycloak (bijv. het token-endpoint). Vul hier exact de origin in zonder afsluitende slash.
-
-##### Productie (HTTPS)
-
-Vervang bij productie alle URL's door het publieke HTTPS-adres van de applicatie:
-
-| Veld                            | Waarde                                          |
-|---------------------------------|-------------------------------------------------|
-| Root URL                        | `https://jouwdomein.nl`                         |
-| Home URL                        | `https://jouwdomein.nl`                         |
-| Valid redirect URIs             | `https://jouwdomein.nl/signin-oidc`             |
-| Valid post logout redirect URIs | `https://jouwdomein.nl/signout-callback-oidc`   |
-| Web origins                     | `https://jouwdomein.nl`                         |
-| Admin URL                       | `https://jouwdomein.nl`                         |
-
-Klik onderaan op **Save**.
-
-### Stap 3 — Client secret ophalen
-
-Na het opslaan:
-
-1. Klik op het tabblad **Credentials**
-2. Kopieer de waarde bij **Client secret**
-
-```
-Client secret:  xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```yaml
+command: start-dev --import-realm
+volumes:
+  - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
 ```
 
-Sla deze op in de configuratie van de Blazor Web App zoals beschreven in de volgende stap.
+Bij elke **eerste** start (leeg volume) importeert Keycloak de realm automatisch. Een bestaande realm wordt niet overschreven.
 
-### Stap 3b — Blazor Web App configureren
+### Opnieuw importeren
 
-De Blazor Web App leest de Keycloak-verbindingsgegevens uit `appsettings.json` via de `Keycloak`-sectie. Open het bestand `appsettings.json` in de root van het project en vul de drie velden in:
+Wil je de realm opnieuw importeren na wijzigingen in `realm-export.json`:
 
-```json
-{
-  "Keycloak": {
-    "Authority": "http://<keycloak-host>:8080/realms/homelab",
-    "ClientId": "blazor-web-app",
-    "ClientSecret": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "RequireHttpsMetadata": false
-  }
-}
+```bash
+docker compose down -v
+docker compose up -d
 ```
 
-| Veld                   | Waarde                                       | Toelichting                                                                       |
-|------------------------|----------------------------------------------|-----------------------------------------------------------------------------------|
-| `Authority`            | `http://<keycloak-host>:8080/realms/homelab` | Vervang `<keycloak-host>` door `localhost` of het IP-adres van de Keycloak-server |
-| `ClientId`             | `blazor-web-app`                             | Exact de Client ID zoals aangemaakt in stap 2a                                    |
-| `ClientSecret`         | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`       | Het gekopieerde client secret van het tabblad **Credentials**                     |
-| `RequireHttpsMetadata` | `false`                                      | Staat HTTP toe voor de verbinding met Keycloak — zet op `true` in productie       |
+> `-v` verwijdert het Keycloak data-volume zodat de volgende start als een schone installatie wordt behandeld.
 
-#### Voorbeeld: Keycloak op dezelfde machine
+### Realm exporteren
 
-```json
-"Authority": "http://localhost:8080/realms/homelab"
+Na handmatige wijzigingen in de beheerconsole kun je de realm exporteren om `realm-export.json` bij te werken:
+
+```bash
+docker exec -it keycloak /opt/keycloak/bin/kc.sh export \
+  --dir /opt/keycloak/data/export \
+  --realm homelab \
+  --users realm_file
+
+docker cp keycloak:/opt/keycloak/data/export/homelab-realm.json ./realm-export.json
 ```
 
-#### Voorbeeld: Keycloak op een andere server in het netwerk
+---
 
-```json
-"Authority": "http://192.168.2.70:8080/realms/homelab"
-```
+## 3. Handmatig: nieuwe realm aanmaken
 
-> **Nooit het client secret in versiebeheer opslaan.** Gebruik voor productie omgevingsvariabelen of een secrets manager. Lokaal kun je `dotnet user-secrets` gebruiken:
->
-> ```bash
-> dotnet user-secrets set "Keycloak:ClientSecret" "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-> ```
+Volg deze stappen als je de realm handmatig wilt aanmaken zonder importbestand.
 
-### Stap 4 — Client rollen opnemen in het token
+### Stap 1 — Inloggen op de beheerconsole
 
-Standaard worden client-rollen **niet** meegestuurd als platte claim in het ID-token of access token. Keycloak plaatst ze intern onder `resource_access.<client-id>.roles`. Onderstaande mapper vertaalt deze naar een eenvoudige `roles`-claim die door de meeste frameworks direct te gebruiken is.
+Ga naar `http://<host-ip>:8082/admin` en log in als `admin`.
 
-#### Navigeren naar de dedicated client scope
+### Stap 2 — Realm aanmaken
 
-1. Ga naar **Clients** in het linkermenu
-2. Klik op `blazor-web-app` in de lijst
-3. Klik op het tabblad **Client scopes**
-4. Klik op de blauwe link **`blazor-web-app-dedicated`** in de tabel
+Klik linksboven op **Manage realms** → **Create realm**.
 
-Je komt nu op de pagina **Dedicated scopes** van de client. De breadcrumb bovenaan toont:
+| Veld       | Waarde    |
+|------------|-----------|
+| Realm name | `homelab` |
+| Enabled    | `ON`      |
 
-```
-Clients  >  Client details  >  Dedicated scopes
-```
+Klik op **Create**. De console schakelt automatisch over naar de nieuwe realm.
 
-De pagina toont twee tabbladen — **Mappers** en **Scope** — en meldt **No mappers** omdat er nog geen mappers zijn aangemaakt.
+---
 
-> Dit is de *dedicated scope* die exclusief voor deze client geldt. Mappers die je hier toevoegt zijn alleen actief voor `blazor-web-app`.
+## 4. Handmatig: client toevoegen
 
-#### Mapper aanmaken
+### Stap 1 — Navigeren
 
-5. Klik op de knop **Configure a new mapper** (rechtsonder op de lege Mappers-pagina)
-6. Er verschijnt een lijst met mapper-types — kies **User Client Role**
+Klik in het linkermenu op **Clients** → **Create client**.
 
-Vul het formulier in:
+### Stap 2 — General Settings
 
-| Veld                            | Waarde             | Toelichting                                                          |
-|---------------------------------|--------------------|----------------------------------------------------------------------|
-| Mapper type                     | `User Client Role` | Wordt automatisch ingevuld na de vorige stap                         |
-| Name                            | `client-roles`     | Naam ter herkenning in de Keycloak-console                           |
-| Client ID                       | `blazor-web-app`   | Alleen rollen van déze client worden meegestuurd                     |
-| Client Role prefix              | *(leeg laten)*     | Optioneel voorvoegsel voor rolnamen                                  |
-| Multivalued                     | `ON`               | Meerdere rollen per gebruiker mogelijk                               |
-| Token Claim Name                | `roles`            | Naam van de claim in het token — gebruik deze naam in je applicatie  |
-| Claim JSON Type                 | `String`           | Elke rol wordt als losse string-waarde meegestuurd                   |
-| Add to ID token                 | `ON`               | Applicatie leest rollen uit het ID token                             |
-| Add to access token             | `ON`               | Vereist voor API-aanroepen met Bearer token                          |
-| Add to lightweight access token | `OFF`              | Niet nodig voor standaard gebruik                                    |
-| Add to userinfo                 | `ON`               | Rollen beschikbaar via het UserInfo-endpoint                         |
-| Add to token introspection      | `ON`               | Rollen zichtbaar bij token-validatie via het introspection-endpoint  |
+| Veld        | Waarde                                     |
+|-------------|--------------------------------------------|
+| Client type | `OpenID Connect`                           |
+| Client ID   | `blazor-web-app`                           |
+| Name        | `Blazor Web App`                           |
+| Description | `Webapplicatie met Keycloak authenticatie` |
+
+### Stap 3 — Capability Config
+
+| Instelling            | Waarde | Toelichting                                    |
+|-----------------------|--------|------------------------------------------------|
+| Client authentication | `ON`   | Confidential client met client secret          |
+| Authorization         | `OFF`  |                                                |
+| Standard flow         | `ON`   | Authorization Code Flow via browser            |
+| Direct access grants  | `OFF`  |                                                |
+
+### Stap 4 — Login Settings
+
+| Veld                            | Waarde                                        |
+|---------------------------------|-----------------------------------------------|
+| Root URL                        | `http://localhost:5000`                       |
+| Home URL                        | `http://localhost:5000`                       |
+| Valid redirect URIs             | `http://localhost:5000/signin-oidc`           |
+| Valid post logout redirect URIs | `http://localhost:5000/signout-callback-oidc` |
+| Web origins                     | `http://localhost:5000`                       |
 
 Klik op **Save**.
 
-Na het opslaan verschijnt de mapper `client-roles` in de lijst onder het tabblad **Mappers**.
+### Stap 5 — Client secret ophalen
 
-#### Aansluiting op je applicatie
+Klik op het tabblad **Credentials** en kopieer de waarde bij **Client secret**.
 
-Gebruik in je applicatie de claim-naam `roles` voor rolcontrole. De exacte configuratie hangt af van het framework, maar de claim-naam in het token is altijd `roles`.
+Sla het op via user-secrets (development):
 
----
+```bash
+dotnet user-secrets set "Keycloak:ClientSecret" "jouw-secret"
+```
 
-## 4. Client rollen aanmaken: admin & user
+Of via omgevingsvariabele (productie/Docker):
 
-Client rollen zijn rollen die specifiek gelden voor één client (`blazor-web-app`). Ze zijn gescheiden van realm-rollen en beter geschikt voor applicatiespecifieke autorisatie.
+```bash
+export Keycloak__ClientSecret="jouw-secret"
+```
 
-### Stap 1 — Naar client rollen navigeren
+### Stap 6 — Rollen in token opnemen
 
-1. Klik in het linkermenu op **Clients**
-2. Klik op `blazor-web-app`
-3. Klik op het tabblad **Roles**
+Standaard worden client-rollen niet als platte claim meegestuurd. Voeg een mapper toe:
 
-### Stap 2 — Rol `admin` aanmaken
+1. Ga naar **Clients** → `blazor-web-app` → **Client scopes**
+2. Klik op **`blazor-web-app-dedicated`**
+3. Klik op **Configure a new mapper** → kies **User Client Role**
 
-Klik op **Create role**.
-
-| Veld        | Waarde                                                                                                                                                                                      |
-|-------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Role name   | `admin`                                                                                                                                                                                     |
-| Description | `Volledige beheertoegang tot de applicatie. Toegang tot alle pagina's inclusief gebruikersbeheer, systeeminstellingen en audit-logs. Uitsluitend voor IT-beheerders en applicatiebeheerders.` |
-
-Klik op **Save**.
-
-### Stap 3 — Rol `user` aanmaken
-
-Klik op **Create role** (of klik op de `←`-knop om terug te gaan naar het rollenlijstje).
-
-| Veld        | Waarde                                                                                                                                                                                                        |
-|-------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Role name   | `user`                                                                                                                                                                                                        |
-| Description | `Standaard gebruikersrol voor alle geregistreerde medewerkers en eindgebruikers. Geeft toegang tot het dashboard en het gedeeld portaal. Dit is de basisrol die automatisch wordt toegewezen bij registratie.` |
+| Veld             | Waarde           |
+|------------------|------------------|
+| Name             | `client-roles`   |
+| Client ID        | `blazor-web-app` |
+| Multivalued      | `ON`             |
+| Token Claim Name | `roles`          |
+| Claim JSON Type  | `String`         |
+| Add to ID token  | `ON`             |
+| Add to userinfo  | `ON`             |
 
 Klik op **Save**.
 
-### Overzicht rollen
+---
 
-Na aanmaken zie je het volgende overzicht onder **Clients → blazor-web-app → Roles**:
+## 5. Handmatig: client rollen aanmaken
 
-| Rolnaam | Beschrijving            |
-|---------|-------------------------|
-| `admin` | Volledige beheertoegang |
-| `user`  | Standaard gebruikersrol |
+Ga naar **Clients** → `blazor-web-app` → **Roles** → **Create role**.
+
+### Rol `admin`
+
+| Veld        | Waarde                                                                                         |
+|-------------|------------------------------------------------------------------------------------------------|
+| Role name   | `admin`                                                                                        |
+| Description | `Volledige beheertoegang. Toegang tot alle pagina's inclusief beheer en instellingen.`         |
+
+### Rol `user`
+
+| Veld        | Waarde                                                                                         |
+|-------------|------------------------------------------------------------------------------------------------|
+| Role name   | `user`                                                                                         |
+| Description | `Standaard gebruikersrol. Geeft toegang tot het dashboard en gedeeld portaal.`                 |
 
 ---
 
-## 5. Gebruiker aanmaken en rol toewijzen
+## 6. Gebruiker aanmaken en rol toewijzen
 
-### Stap 1 — Naar Gebruikers navigeren
+### Stap 1 — Gebruiker aanmaken
 
-Klik in het linkermenu op **Users**.
-
-### Stap 2 — Nieuwe gebruiker aanmaken
-
-Klik op **Create new user**.
-
-#### Tabblad: Required user actions
-
-Laat leeg voor een direct actieve account.
-
-#### Formulier invullen
+Ga naar **Users** → **Create new user**.
 
 | Veld           | Waarde           |
 |----------------|------------------|
@@ -415,127 +232,47 @@ Laat leeg voor een direct actieve account.
 
 Klik op **Create**.
 
-### Stap 3 — Wachtwoord instellen
+### Stap 2 — Wachtwoord instellen
 
-1. Klik op het tabblad **Credentials**
-2. Klik op **Set password**
-3. Vul een wachtwoord in
-4. Zet **Temporary** op `OFF` (zodat de gebruiker niet hoeft te wijzigen bij eerste login)
-5. Klik op **Save** → bevestig met **Save password**
+Ga naar tabblad **Credentials** → **Set password**.
 
-### Stap 4 — Client rol toewijzen
+Zet **Temporary** op `OFF` en klik op **Save** → **Save password**.
 
-1. Klik op het tabblad **Role mapping**
+### Stap 3 — Rol toewijzen
 
-   Je ziet de huidige rollen van de gebruiker. De knop **Assign role** heeft een pijltje waarmee je kunt kiezen tussen **Client roles** en **Realm roles**:
+Ga naar tabblad **Role mapping** → **Assign role** → **Client roles**.
 
-   ```
-   [ Assign role ▼ ]
-        ├── Client roles
-        └── Realm roles
-   ```
+Selecteer `admin` of `user` onder **blazor-web-app** en klik op **Assign**.
 
-2. Klik op de pijl naast **Assign role** en kies **Client roles**
+### Stap 4 — Verificatie via Evaluate
 
-   Er opent een venster **Assign Client roles to [gebruikersnaam]** met een lijst van alle beschikbare client rollen. De lijst toont rollen van alle clients, gegroepeerd op **Client ID**:
+1. Ga naar **Clients** → `blazor-web-app` → **Client scopes** → **Evaluate**
+2. Selecteer de gebruiker
+3. Klik op **Generated ID token**
 
-   ```
-   Name                  Client ID          Description
-   ─────────────────────────────────────────────────────────
-   delete-account        account            role_delete-account
-   manage-account        account            role_manage-account
-   ...
-   admin                 blazor-web-app     Volledige beheertoegang...
-   user                  blazor-web-app     Standaard gebruikersrol...
-   ```
-
-3. Scroll naar beneden tot de rollen met **Client ID** `blazor-web-app` en vink de gewenste rol aan:
-   - `user` voor een standaard gebruiker
-   - `admin` voor een beheerder
-
-4. Klik op **Assign**
-
-**Verificatie:** na het toewijzen zie je de rol in het overzicht onder Role mapping:
-
-```
-Name                        Inherited    Description
-admin (blazor-web-app)      False
-```
-
-### Stap 5 — Werking van de rol mapper controleren
-
-Nu de gebruiker een rol heeft, kun je via de Evaluate-tool controleren of de rol correct in het token terechtkomt.
-
-1. Ga naar **Clients** → `blazor-web-app`
-2. Klik op het tabblad **Client scopes**
-3. Klik op het subtabblad **Evaluate** (naast **Setup**)
-4. Typ bij **Users** de gebruikersnaam (bijv. `jan.de.vries`) of selecteer deze uit de dropdown
-5. Laat **Target audience** leeg
-
-Aan de rechterkant verschijnen vier links:
-
-```
-Effective protocol mappers
-Effective role scope mappings
-Generated access token
-Generated ID token          ← klik hier
-Generated user info
-```
-
-6. Klik op **Generated ID token**
-
-Het ID token wordt getoond als gedecodeerde JSON. Controleer of de `roles`-claim aanwezig is en de juiste waarden bevat:
+Het token moet de `roles`-claim bevatten:
 
 ```json
 {
-  "iss": "http://192.168.x.x:8080/realms/homelab",
-  "aud": "blazor-web-app",
-  "typ": "ID",
-  "email_verified": true,
-  "roles": [
-    "user",
-    "manage-account",
-    "manage-account-links",
-    "view-profile"
-  ],
-  "name": "Jan de Vries",
   "preferred_username": "jan.de.vries",
-  "given_name": "Jan",
-  "family_name": "de Vries"
+  "roles": ["admin", "user"]
 }
 ```
 
-> De claim bevat naast de eigen rol (`user`) ook standaard account-rollen zoals `manage-account` en `view-profile`. Dit is normaal gedrag van Keycloak.
-
-> Als de `roles`-claim ontbreekt, controleer dan of **Client ID** in de mapper exact `blazor-web-app` is (hoofdlettergevoelig) en of **Multivalued** op `ON` staat. Zie [sectie 3 stap 4](#3-client-toevoegen-blazor-web-app).
-
 ---
 
-## Bijlage A — Samenvatting configuratie
+## Bijlagen
 
-| Onderdeel               | Waarde                        |
-|-------------------------|-------------------------------|
-| Keycloak URL            | `http://localhost:8080`       |
-| Realm                   | `homelab`                     |
-| Client ID               | `blazor-web-app`              |
-| Client type             | Confidential (OpenID Connect) |
-| Rollen                  | `admin`, `user`               |
-| Token claim voor rollen | `roles`                       |
-| Registratie             | Ingeschakeld                  |
-| Standaard rol           | `user` (blazor-web-app)       |
+### Bijlage A — Handige URLs
 
-### Handige URLs
+| Doel                      | URL                                                                      |
+|---------------------------|--------------------------------------------------------------------------|
+| Beheerconsole             | `http://<host>:8082/admin`                                               |
+| Gebruikersportaal         | `http://<host>:8082/realms/homelab/account`                              |
+| OIDC discovery endpoint   | `http://<host>:8082/realms/homelab/.well-known/openid-configuration`     |
+| Blazor Web App            | `http://<host>:5000`                                                     |
 
-| Doel                      | URL                                                                     |
-|---------------------------|-------------------------------------------------------------------------|
-| Beheerconsole             | `http://localhost:8080/admin`                                           |
-| Gebruikersaccount portaal | `http://localhost:8080/realms/homelab/account`                          |
-| OIDC discovery endpoint   | `http://localhost:8080/realms/homelab/.well-known/openid-configuration` |
-| Loginpagina               | `http://localhost:8080/realms/homelab/protocol/openid-connect/auth`     |
-
----
-
-## Bijlage B — Container beheren
+### Bijlage B — Container beheren
 
 ```bash
 # Starten
@@ -552,157 +289,19 @@ docker compose down -v
 
 # Logs bekijken
 docker compose logs -f keycloak
+docker compose logs -f blazor
 
-# Keycloak updaten naar nieuwe versie
+# Nieuwste images ophalen en herstarten
 docker compose pull
 docker compose up -d
 ```
 
----
+### Bijlage C — Probleemoplossing
 
-## Bijlage C — Realm exporteren en importeren via Docker Compose
-
-Door de realm te exporteren en als bestand mee te geven aan Docker Compose wordt de volledige Keycloak-configuratie (realm, client, rollen, mappers) reproduceerbaar. Bij het opnieuw opstarten van de container wordt de realm automatisch aangemaakt zonder handmatige stappen in de beheerconsole.
-
----
-
-### Stap 1 — Realm exporteren uit een draaiende container
-
-Voer het exportcommando uit binnen de draaiende Keycloak-container. Keycloak schrijft het exportbestand naar een map binnen de container.
-
-```bash
-docker exec -it keycloak /opt/keycloak/bin/kc.sh export \
-  --dir /opt/keycloak/data/export \
-  --realm homelab \
-  --users realm_file
-```
-
-| Parameter     | Waarde             | Toelichting                                                              |
-|---------------|--------------------|--------------------------------------------------------------------------|
-| `--dir`       | `/opt/keycloak/data/export` | Map binnen de container waar het exportbestand wordt opgeslagen |
-| `--realm`     | `homelab`          | Naam van de realm om te exporteren                                       |
-| `--users`     | `realm_file`       | Gebruikers worden meegenomen in hetzelfde bestand als de realm           |
-
-> **Let op:** het exportcommando start tijdelijk een tweede Keycloak-proces in de container. Wacht tot het proces zichzelf afsluit (je ziet `Export finished successfully` in de output).
-
----
-
-### Stap 2 — Exportbestand kopiëren naar de host
-
-Het exportbestand staat nu in het Docker-volume. Kopieer het naar de projectmap op de host:
-
-```bash
-docker cp keycloak:/opt/keycloak/data/export/homelab-realm.json ./homelab-realm.json
-```
-
-Controleer of het bestand aanwezig is:
-
-```bash
-ls -lh homelab-realm.json
-```
-
----
-
-### Stap 3 — Projectstructuur aanpassen
-
-Maak een map aan voor de realm-bestanden en plaats het exportbestand daarin:
-
-```bash
-mkdir -p keycloak/import
-mv homelab-realm.json keycloak/import/
-```
-
-De projectstructuur ziet er dan als volgt uit:
-
-```
-keycloak-local/
-├── docker-compose.yml
-└── keycloak/
-    └── import/
-        └── homelab-realm.json
-```
-
----
-
-### Stap 4 — `docker-compose.yml` aanpassen
-
-Pas het `docker-compose.yml` bestand aan zodat de importmap als volume wordt gemount en Keycloak bij het starten automatisch de realm importeert:
-
-```yaml
-services:
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.5.5
-    container_name: keycloak
-    environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_LOG_LEVEL: INFO
-    command: start-dev --import-realm
-    ports:
-      - "8080:8080"
-    volumes:
-      - keycloak_data:/opt/keycloak/data
-      - ./keycloak/import:/opt/keycloak/data/import:ro
-    restart: unless-stopped
-
-volumes:
-  keycloak_data:
-```
-
-| Wijziging | Toelichting |
-|-----------|-------------|
-| `--import-realm` aan `command` toegevoegd | Instrueert Keycloak om bij het opstarten alle `.json`-bestanden in `/opt/keycloak/data/import` te importeren |
-| `./keycloak/import:/opt/keycloak/data/import:ro` | Koppelt de lokale importmap aan de verwachte importlocatie binnen de container (read-only) |
-
-> **Bestaande realm wordt niet overschreven.** Keycloak importeert een realm alleen als deze nog niet bestaat. Wil je een bestaande realm opnieuw importeren, verwijder dan eerst het volume (`docker compose down -v`) zodat de container fris start.
-
----
-
-### Stap 5 — Container opnieuw opbouwen
-
-Verwijder het bestaande volume zodat de import bij een schone start wordt uitgevoerd:
-
-```bash
-docker compose down -v
-docker compose up -d
-```
-
-Controleer de logs om te bevestigen dat de import geslaagd is:
-
-```bash
-docker compose logs keycloak | grep -i import
-```
-
-Verwachte output:
-
-```
-... Imported realm homelab from file ...
-```
-
----
-
-### Samenvatting workflow
-
-```
-Bestaande Keycloak
-        │
-        ▼
-docker exec ... kc.sh export --realm homelab
-        │
-        ▼
-docker cp ... homelab-realm.json
-        │
-        ▼
-Bestand in keycloak/import/ plaatsen
-        │
-        ▼
-docker-compose.yml: --import-realm + volume mount
-        │
-        ▼
-docker compose down -v && docker compose up -d
-        │
-        ▼
-Keycloak start met realm homelab automatisch aangemaakt
-```
-
----
+| Probleem | Oorzaak | Oplossing |
+|----------|---------|-----------|
+| `Correlation failed` | Correlation cookie wordt niet teruggestuurd door browser | Controleer `SameSite=Unspecified` en `SecurePolicy=None` op correlation-cookies in `AuthServiceExtensions.cs` |
+| `Key not found in key ring` | Data Protection keys niet persistent | Controleer of het volume `/app/keys` correct gemount is en `PersistKeysToFileSystem` in `Program.cs` staat |
+| `Unable to obtain configuration` | Blazor container kan Keycloak niet bereiken | Controleer `MetadataAddress` — moet de interne Docker hostnaam gebruiken (`http://keycloak:8082/...`) |
+| `invalid_request: Authentication failed` | PAR niet ingeschakeld in Keycloak | `PushedAuthorizationBehavior.Disable` staat in `ConfigureKeycloakOptions.cs`; controleer of de nieuwe image is gedeployd |
+| Rollen werken niet in `AuthorizeView` | `RoleClaimType` klopt niet | Controleer dat `RoleClaimType` het Microsoft schema-URI is: `http://schemas.microsoft.com/ws/2008/06/identity/claims/role` |

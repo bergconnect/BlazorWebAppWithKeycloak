@@ -80,7 +80,7 @@ solution/
 │   │   └── WeatherForecast.cs            # Record model voor weersdata
 │   ├── appsettings.json
 │   ├── appsettings.Development.json
-│   └── Program.cs
+│   └── Program.cs                        # ForwardedHeaders + omgevingsafhankelijke cookies
 ├── BlazorWebAppWithKeycloak.API/         # Minimal API (backend)
 │   ├── Auth/
 │   │   ├── AuthServiceExtensions.cs      # AddKeycloakJwtAuthentication()
@@ -91,8 +91,9 @@ solution/
 │   ├── appsettings.json
 │   ├── appsettings.Development.json
 │   └── Program.cs
-├── realm-export.json                     # Keycloak realm configuratie
-└── docker-compose.yml
+├── docker-compose.yml
+├── .env                                  # Secrets en image-namen (in .gitignore)
+└── .env.example                          # Voorbeeld zonder gevoelige waarden
 ```
 
 ---
@@ -118,13 +119,13 @@ solution/
 ```json
 {
   "Keycloak": {
-    "Authority": "http://<keycloak-host>:8082/realms/homelab",
+    "Authority": "https://idp.berg-connect.nl/realms/homelab",
     "ClientId": "blazor-web-app",
     "ClientSecret": "",
-    "RequireHttpsMetadata": false
+    "RequireHttpsMetadata": true
   },
   "ApiSettings": {
-    "BaseUrl": "http://localhost:5001"
+    "BaseUrl": "http://localhost:5114"
   }
 }
 ```
@@ -143,9 +144,9 @@ solution/
 ```json
 {
   "Keycloak": {
-    "Authority": "http://<keycloak-host>:8082/realms/homelab",
+    "Authority": "https://idp.berg-connect.nl/realms/homelab",
     "ClientId": "blazor-web-app",
-    "RequireHttpsMetadata": false
+    "RequireHttpsMetadata": true
   }
 }
 ```
@@ -384,34 +385,74 @@ Immutable `record` model. Staat in een apart bestand in plaats van als private n
 
 | Service    | Image                                         | Poort          |
 |------------|-----------------------------------------------|----------------|
-| `keycloak` | `quay.io/keycloak/keycloak:latest`            | `8082 → 8082`  |
-| `blazor`   | `git.berg-connect.nl/lvdberg/demo:latest`     | `5000 → 8080`  |
-| `api`      | `git.berg-connect.nl/lvdberg/demo-api:latest` | `5001 → 8080`  |
+| `blazor` | `${BLAZOR_IMAGE}` (via `.env`)  | `5000 → 8080`  |
+| `api`    | `${API_IMAGE}` (via `.env`)     | `5001 → 8080`  |
 
 ### URL-configuratie per service
 
-**Blazor** — gebruikt interne Docker hostnaam voor metadata; `KC_HOSTNAME` zorgt voor correcte publieke URLs in Keycloak-tokens:
+De app draait achter een reverse proxy op `https://demo.berg-connect.nl`. Keycloak is gehost op `https://idp.berg-connect.nl`. Beide services communiceren direct met de hosted Keycloak zonder interne MetadataAddress.
 
+**Blazor:**
 ```yaml
-- Keycloak__Authority=http://keycloak:8082/realms/homelab
-- KC_HOSTNAME=192.168.2.43
+- ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+- Keycloak__Authority=https://idp.berg-connect.nl/realms/homelab
+- Keycloak__RequireHttpsMetadata=true
 ```
 
-**API** — publieke Authority voor issuer-validatie, interne MetadataAddress voor JWKS:
-
+**API:**
 ```yaml
-- Keycloak__Authority=http://192.168.2.43:8082/realms/homelab
-- Keycloak__MetadataAddress=http://keycloak:8082/realms/homelab/.well-known/openid-configuration
+- Keycloak__Authority=https://idp.berg-connect.nl/realms/homelab
+- Keycloak__RequireHttpsMetadata=true
 ```
+
+### `.env` bestand
+
+Image-namen en secrets staan in `.env` naast `docker-compose.yml`. Gebruik `.env.example` als sjabloon:
+
+```env
+KEYCLOAK_CLIENT_SECRET=jouw-client-secret
+BLAZOR_IMAGE=<jouw-registry>/demo:latest
+API_IMAGE=<jouw-registry>/demo-api:latest
+```
+
+> Voeg `.env` toe aan `.gitignore` — het bevat secrets en omgevingsspecifieke image-namen.
 
 ### Opstarten
 
 ```bash
-echo "KEYCLOAK_CLIENT_SECRET=jouw-secret" > .env
+cp .env.example .env
+# Vul .env in met de juiste waarden
 docker compose up -d
 docker compose logs -f blazor
 docker compose logs -f api
 ```
+
+---
+
+## Reverse proxy
+
+De Blazor app draait achter een reverse proxy (Nginx Proxy Manager) die TLS termineert. De proxy stuurt `X-Forwarded-For` en `X-Forwarded-Proto` headers mee.
+
+### ForwardedHeaders middleware
+
+In `Program.cs` wordt `UseForwardedHeaders()` ingeschakeld **alleen buiten Development**. Dit zorgt dat ASP.NET Core de forwarded headers verwerkt en `https://demo.berg-connect.nl` als basis-URL gebruikt voor OIDC redirect URIs:
+
+```csharp
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders =
+            ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
+```
+
+Zonder dit gebruikt de OIDC-handler `http://localhost:5000/signin-oidc` als `redirect_uri` — wat niet overeenkomt met de ingestelde redirect URI in Keycloak.
+
+Lokaal (Development) worden forwarded headers niet verwerkt zodat `http://localhost:5000` correct blijft werken.
 
 ---
 

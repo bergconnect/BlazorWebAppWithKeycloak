@@ -7,12 +7,11 @@
 ## Inhoudsopgave
 
 1. [Keycloak opstarten via Docker Compose](#1-keycloak-opstarten-via-docker-compose)
-2. [Realm importeren via realm-export.json](#2-realm-importeren-via-realm-exportjson)
-3. [Handmatig: nieuwe realm aanmaken](#3-handmatig-nieuwe-realm-aanmaken)
-4. [Handmatig: client toevoegen](#4-handmatig-client-toevoegen)
-5. [Handmatig: client rollen aanmaken](#5-handmatig-client-rollen-aanmaken)
-6. [Gebruiker aanmaken en rol toewijzen](#6-gebruiker-aanmaken-en-rol-toewijzen)
-7. [Bijlagen](#bijlagen)
+2. [Realm aanmaken](#2-realm-aanmaken)
+3. [Client toevoegen](#3-client-toevoegen)
+4. [Client rollen aanmaken](#4-client-rollen-aanmaken)
+5. [Gebruiker aanmaken en rol toewijzen](#5-gebruiker-aanmaken-en-rol-toewijzen)
+6. [Bijlagen](#bijlagen)
    - [Bijlage A — Handige URLs](#bijlage-a--handige-urls)
    - [Bijlage B — Container beheren](#bijlage-b--container-beheren)
    - [Bijlage C — Probleemoplossing](#bijlage-c--probleemoplossing)
@@ -27,7 +26,6 @@ De aanbevolen manier om Keycloak, de Blazor Web App en de API samen te draaien i
 ### 1.1 Vereisten
 
 - Docker met Docker Compose
-- Het bestand `realm-export.json` in dezelfde map als `docker-compose.yml`
 - Een `.env` bestand met het client secret
 
 ### 1.2 `.env` aanmaken
@@ -48,9 +46,9 @@ docker compose up -d
 
 | Service    | URL                            |
 |------------|--------------------------------|
-| Keycloak   | `http://<host-ip>:8082`        |
-| Blazor app | `http://<host-ip>:5000`        |
-| API        | `http://<host-ip>:5001`        |
+| Keycloak (gehost) | `https://idp.berg-connect.nl`  |
+| Blazor app        | `https://demo.berg-connect.nl` |
+| API (intern)      | `http://<host-ip>:5001`        |
 
 ### 1.4 Beheerconsole
 
@@ -67,51 +65,7 @@ http://<host-ip>:8082/admin
 
 ---
 
-## 2. Realm importeren via realm-export.json
-
-De meegeleverde `realm-export.json` bevat de volledige configuratie van de `homelab` realm inclusief client, rollen en mappers. Bij het opstarten van de container importeert Keycloak deze automatisch.
-
-### Werking
-
-De `docker-compose.yml` bevat twee sleutelinstellingen:
-
-```yaml
-command: start-dev --import-realm
-volumes:
-  - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-```
-
-Bij elke **eerste** start (leeg volume) importeert Keycloak de realm automatisch. Een bestaande realm wordt niet overschreven.
-
-### Opnieuw importeren
-
-Wil je de realm opnieuw importeren na wijzigingen in `realm-export.json`:
-
-```bash
-docker compose down -v
-docker compose up -d
-```
-
-> `-v` verwijdert het Keycloak data-volume zodat de volgende start als een schone installatie wordt behandeld.
-
-### Realm exporteren
-
-Na handmatige wijzigingen in de beheerconsole kun je de realm exporteren om `realm-export.json` bij te werken:
-
-```bash
-docker exec -it keycloak /opt/keycloak/bin/kc.sh export \
-  --dir /opt/keycloak/data/export \
-  --realm homelab \
-  --users realm_file
-
-docker cp keycloak:/opt/keycloak/data/export/homelab-realm.json ./realm-export.json
-```
-
----
-
-## 3. Handmatig: nieuwe realm aanmaken
-
-Volg deze stappen als je de realm handmatig wilt aanmaken zonder importbestand.
+## 2. Handmatig: nieuwe realm aanmaken
 
 ### Stap 1 — Inloggen op de beheerconsole
 
@@ -130,7 +84,7 @@ Klik op **Create**. De console schakelt automatisch over naar de nieuwe realm.
 
 ---
 
-## 4. Handmatig: client toevoegen
+## 3. Client toevoegen
 
 ### Stap 1 — Navigeren
 
@@ -219,7 +173,7 @@ Klik op **Save**.
 
 ---
 
-## 5. Handmatig: client rollen aanmaken
+## 4. Client rollen aanmaken
 
 Ga naar **Clients** → `blazor-web-app` → **Roles** → **Create role**.
 
@@ -239,7 +193,7 @@ Ga naar **Clients** → `blazor-web-app` → **Roles** → **Create role**.
 
 ---
 
-## 6. Gebruiker aanmaken en rol toewijzen
+## 5. Gebruiker aanmaken en rol toewijzen
 
 ### Stap 1 — Gebruiker aanmaken
 
@@ -295,13 +249,13 @@ Het token moet bevatten:
 
 | Doel                      | URL                                                                      |
 |---------------------------|--------------------------------------------------------------------------|
-| Keycloak beheerconsole    | `http://<host>:8082/admin`                                               |
-| Gebruikersportaal         | `http://<host>:8082/realms/homelab/account`                              |
-| OIDC discovery endpoint   | `http://<host>:8082/realms/homelab/.well-known/openid-configuration`     |
-| Blazor Web App            | `http://<host>:5000`                                                     |
-| API                       | `http://<host>:5001`                                                     |
-| API Hello endpoint        | `http://<host>:5001/api/hello`                                           |
-| API OpenAPI (development) | `http://<host>:5001/openapi/v1.json`                                     |
+| Keycloak beheerconsole    | `https://idp.berg-connect.nl/admin`                                                    |
+| Gebruikersportaal         | `https://idp.berg-connect.nl/realms/homelab/account`                                   |
+| OIDC discovery endpoint   | `https://idp.berg-connect.nl/realms/homelab/.well-known/openid-configuration`          |
+| Blazor Web App            | `https://demo.berg-connect.nl`                                                         |
+| API (intern)              | `http://<host>:5001`                                                                   |
+| API Hello endpoint        | `http://<host>:5001/api/hello`                                                         |
+| API OpenAPI (development) | `http://localhost:5114/openapi/v1.json`                                                |
 
 ### Bijlage B — Container beheren
 
@@ -342,64 +296,45 @@ docker compose up -d
 
 ## Bijlage D — Voorbeeld docker-compose.yml
 
-Sla dit bestand op als `docker-compose.yml` naast `realm-export.json` en een `.env` bestand.
+Sla dit bestand op als `docker-compose.yml` naast een `.env` bestand.
 
-**.env:**
+**.env** (kopieer van `.env.example` en vul in):
 ```
 KEYCLOAK_CLIENT_SECRET=jouw-client-secret-hier
+BLAZOR_IMAGE=<jouw-registry>/demo:latest
+API_IMAGE=<jouw-registry>/demo-api:latest
 ```
+
+> Voeg `.env` toe aan `.gitignore`. Commit alleen `.env.example` met lege of placeholder-waarden.
 
 **docker-compose.yml:**
 ```yaml
 services:
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:latest
-    pull_policy: always
-    container_name: keycloak
-    command: start-dev --import-realm
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HTTP_PORT: 8082
-      # Publieke hostname — Keycloak gebruikt dit als issuer in tokens
-      # en voor het genereren van redirect-URLs.
-      KC_HOSTNAME: 192.168.2.43
-      KC_HOSTNAME_PORT: 8082
-      KC_HOSTNAME_STRICT: false
-    ports:
-      - "8082:8082"
-    volumes:
-      - keycloak_data:/opt/keycloak/data
-      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-
   blazor:
-    image: git.berg-connect.nl/lvdberg/demo:latest
+    image: ${BLAZOR_IMAGE}
     pull_policy: always
     container_name: blazor
     ports:
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      # Authority = publieke URL: browser redirects + issuer-validatie van tokens.
-      # Moet overeenkomen met KC_HOSTNAME zodat de issuer in tokens klopt.
-      - Keycloak__Authority=http://192.168.2.43:8082/realms/homelab
+      # Laat ASP.NET Core de X-Forwarded-Proto header van de reverse proxy verwerken
+      # zodat https://demo.berg-connect.nl als basis-URL wordt gebruikt.
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+      - Keycloak__Authority=https://idp.berg-connect.nl/realms/homelab
       - Keycloak__ClientId=blazor-web-app
       - Keycloak__ClientSecret=${KEYCLOAK_CLIENT_SECRET}
-      - Keycloak__RequireHttpsMetadata=false
+      - Keycloak__RequireHttpsMetadata=true
       - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
-      # Interne Docker URL naar de API-container
       - ApiSettings__BaseUrl=http://api:8080
     volumes:
-      # Data Protection keys persistent opslaan zodat cookies
-      # container-herstarts overleven
       - dataprotection-keys:/app/keys
     depends_on:
-      - keycloak
       - api
 
   api:
-    image: git.berg-connect.nl/lvdberg/demo-api:latest
+    image: ${API_IMAGE}
     pull_policy: always
     container_name: api
     ports:
@@ -407,28 +342,19 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
-      # Authority = publieke URL voor issuer-validatie van inkomende JWT-tokens.
-      - Keycloak__Authority=http://192.168.2.43:8082/realms/homelab
-      # MetadataAddress = interne Docker URL voor het ophalen van JWKS-sleutels.
-      # De server communiceert intern; de browser heeft deze URL niet nodig.
-      - Keycloak__MetadataAddress=http://keycloak:8082/realms/homelab/.well-known/openid-configuration
+      - Keycloak__Authority=https://idp.berg-connect.nl/realms/homelab
       - Keycloak__ClientId=blazor-web-app
-      - Keycloak__RequireHttpsMetadata=false
-    depends_on:
-      - keycloak
+      - Keycloak__RequireHttpsMetadata=true
 
 volumes:
-  keycloak_data:
   dataprotection-keys:
 ```
 
-### URL-splitsing uitgelegd
+### Omgevingen
 
-| Service | Instelling | Waarde | Reden |
-|---------|------------|--------|-------|
-| Keycloak | `KC_HOSTNAME` | `192.168.2.43` | Genereert publieke URLs in tokens en redirects |
-| Blazor | `Authority` | `http://192.168.2.43:8082/...` | Issuer in tokens matcht de publieke hostname |
-| API | `Authority` | `http://192.168.2.43:8082/...` | Valideert issuer van inkomende JWT-tokens |
-| API | `MetadataAddress` | `http://keycloak:8082/...` | Haalt JWKS intern op via Docker-netwerk |
+| Omgeving | Blazor | API | Keycloak |
+|----------|--------|-----|---------|
+| Productie | `https://demo.berg-connect.nl` | `http://<host>:5001` (intern) | `https://idp.berg-connect.nl` |
+| Development | `http://localhost:5000` | `http://localhost:5114` | `https://idp.berg-connect.nl` |
 
-> **Pas `192.168.2.43` aan** naar het IP-adres of de hostname van jouw server. Vervang ook de image-namen naar de juiste registry-paden.
+> Image-namen worden ingelezen uit het `.env` bestand — pas `.env` aan voor jouw registry zonder de `docker-compose.yml` te wijzigen.

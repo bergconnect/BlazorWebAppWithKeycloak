@@ -6,14 +6,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- Registry en repository worden ingesteld via de CI/CD pipeline
+       (ContainerRegistry en ContainerRepository properties) zodat
+       deze waarden niet in versiebeheer hoeven te staan. -->
   <PropertyGroup>
-    <ContainerRepository>lvdberg/demo-api</ContainerRepository>
-    <ContainerRegistry>git.berg-connect.nl</ContainerRegistry>
+    <ContainerRepository>demo-api</ContainerRepository>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.4" />
-	<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.4" />
   </ItemGroup>
 
 </Project>

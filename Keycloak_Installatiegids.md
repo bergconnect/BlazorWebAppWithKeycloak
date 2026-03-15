@@ -13,6 +13,10 @@
 5. [Handmatig: client rollen aanmaken](#5-handmatig-client-rollen-aanmaken)
 6. [Gebruiker aanmaken en rol toewijzen](#6-gebruiker-aanmaken-en-rol-toewijzen)
 7. [Bijlagen](#bijlagen)
+   - [Bijlage A — Handige URLs](#bijlage-a--handige-urls)
+   - [Bijlage B — Container beheren](#bijlage-b--container-beheren)
+   - [Bijlage C — Probleemoplossing](#bijlage-c--probleemoplossing)
+   - [Bijlage D — Voorbeeld docker-compose.yml](#bijlage-d--voorbeeld-docker-composeyml)
 
 ---
 
@@ -335,3 +339,96 @@ docker compose up -d
 | `Audience validation failed` | Audience mapper ontbreekt of token niet vernieuwd | Voeg audience mapper toe (stap 7), log uit en opnieuw in |
 | Rollen werken niet in `AuthorizeView` | `RoleClaimType` klopt niet | Controleer `RoleClaimType = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"` in beide projecten |
 | API geeft 401 terug | Token niet meegestuurd of `SaveTokens = false` | Controleer `SaveTokens = true` in `ConfigureKeycloakOptions.cs` en `BearerTokenHandler` in `Services/` |
+
+## Bijlage D — Voorbeeld docker-compose.yml
+
+Sla dit bestand op als `docker-compose.yml` naast `realm-export.json` en een `.env` bestand.
+
+**.env:**
+```
+KEYCLOAK_CLIENT_SECRET=jouw-client-secret-hier
+```
+
+**docker-compose.yml:**
+```yaml
+services:
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    pull_policy: always
+    container_name: keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8082
+      # Publieke hostname — Keycloak gebruikt dit als issuer in tokens
+      # en voor het genereren van redirect-URLs.
+      KC_HOSTNAME: 192.168.2.43
+      KC_HOSTNAME_PORT: 8082
+      KC_HOSTNAME_STRICT: false
+    ports:
+      - "8082:8082"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+
+  blazor:
+    image: git.berg-connect.nl/lvdberg/demo:latest
+    pull_policy: always
+    container_name: blazor
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Authority = publieke URL: browser redirects + issuer-validatie van tokens.
+      # Moet overeenkomen met KC_HOSTNAME zodat de issuer in tokens klopt.
+      - Keycloak__Authority=http://192.168.2.43:8082/realms/homelab
+      - Keycloak__ClientId=blazor-web-app
+      - Keycloak__ClientSecret=${KEYCLOAK_CLIENT_SECRET}
+      - Keycloak__RequireHttpsMetadata=false
+      - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
+      # Interne Docker URL naar de API-container
+      - ApiSettings__BaseUrl=http://api:8080
+    volumes:
+      # Data Protection keys persistent opslaan zodat cookies
+      # container-herstarts overleven
+      - dataprotection-keys:/app/keys
+    depends_on:
+      - keycloak
+      - api
+
+  api:
+    image: git.berg-connect.nl/lvdberg/demo-api:latest
+    pull_policy: always
+    container_name: api
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
+      # Authority = publieke URL voor issuer-validatie van inkomende JWT-tokens.
+      - Keycloak__Authority=http://192.168.2.43:8082/realms/homelab
+      # MetadataAddress = interne Docker URL voor het ophalen van JWKS-sleutels.
+      # De server communiceert intern; de browser heeft deze URL niet nodig.
+      - Keycloak__MetadataAddress=http://keycloak:8082/realms/homelab/.well-known/openid-configuration
+      - Keycloak__ClientId=blazor-web-app
+      - Keycloak__RequireHttpsMetadata=false
+    depends_on:
+      - keycloak
+
+volumes:
+  keycloak_data:
+  dataprotection-keys:
+```
+
+### URL-splitsing uitgelegd
+
+| Service | Instelling | Waarde | Reden |
+|---------|------------|--------|-------|
+| Keycloak | `KC_HOSTNAME` | `192.168.2.43` | Genereert publieke URLs in tokens en redirects |
+| Blazor | `Authority` | `http://192.168.2.43:8082/...` | Issuer in tokens matcht de publieke hostname |
+| API | `Authority` | `http://192.168.2.43:8082/...` | Valideert issuer van inkomende JWT-tokens |
+| API | `MetadataAddress` | `http://keycloak:8082/...` | Haalt JWKS intern op via Docker-netwerk |
+
+> **Pas `192.168.2.43` aan** naar het IP-adres of de hostname van jouw server. Vervang ook de image-namen naar de juiste registry-paden.

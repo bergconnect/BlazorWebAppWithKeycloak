@@ -29,6 +29,7 @@ Deze README beschrijft de implementatie van Keycloak OIDC-authenticatie in de Bl
   - [Weather.razor](#weatherrazor)
   - [Counter.razor](#counterrazor)
   - [HelloWorld.razor](#helloworldrazor)
+  - [Admin.razor](#adminrazor)
 - [Services](#services)
   - [BearerTokenHandler](#bearertokenhandler)
   - [HelloWorldApiClient](#helloworldapiclient)
@@ -68,6 +69,7 @@ solution/
 │   │   │   ├── AccessDenied.razor        # /niet-aangemeld
 │   │   │   ├── Claims.razor              # /claims — token-overzicht
 │   │   │   ├── Counter.razor             # /counter — admin-only knop
+│   │   │   ├── Admin.razor               # /admin — admin-only API aanroep
 │   │   │   ├── HelloWorld.razor          # /hello-world — API aanroep
 │   │   │   └── Weather.razor             # /weather — vereist login
 │   │   ├── RedirectToNotLoggedIn.razor   # Navigeert naar /niet-aangemeld
@@ -272,6 +274,7 @@ Valideert inkomende JWT-tokens op issuer, audience, handtekening (via JWKS) en l
 Registreert JWT Bearer-authenticatie via `builder.Services.AddKeycloakJwtAuthentication()`.
 
 - Policy `"UserRole"` vereist de `user` client-rol
+- Policy `"AdminRole"` vereist de `admin` client-rol
 - `RoleClaimType` via `KeycloakOptions.RoleClaimType` (geen duplicatie)
 
 ---
@@ -285,6 +288,7 @@ Extension method op `IEndpointRouteBuilder`. Registreert alle Hello World-endpoi
 | Endpoint     | Authenticatie | Toelichting                            |
 |--------------|---------------|----------------------------------------|
 | `GET /api/hello` | Policy `UserRole` | Retourneert gebruikersnaam en tijdstip |
+| `GET /api/admin` | Policy `AdminRole` | Retourneert gebruikersnaam en tijdstip — alleen voor admins |
 
 ---
 
@@ -324,6 +328,17 @@ Route: `/hello-world`. Roept server-side de API aan via `HelloWorldApiClient`. T
 
 ---
 
+### Admin.razor
+
+Route: `/admin`. Roept server-side het admin-endpoint aan via `HelloWorldApiClient.GetAdminAsync()`. Gebruikt geneste `<AuthorizeView>` met expliciete `Context` namen om ambiguïteitsfouten te voorkomen:
+
+- Buitenste `<AuthorizeView>` — controleert of de gebruiker ingelogd is
+- Binnenste `<AuthorizeView Roles="admin" Context="adminContext">` — controleert de admin-rol
+
+Niet-admins zien een waarschuwingsmelding. De **Admin API** link in het navigatiemenu is alleen zichtbaar voor gebruikers met de `admin` rol.
+
+---
+
 ## Services
 
 ### BearerTokenHandler
@@ -336,7 +351,14 @@ Route: `/hello-world`. Roept server-side de API aan via `HelloWorldApiClient`. T
 
 `Services/HelloWorldApiClient.cs`
 
-Typed `HttpClient` voor de API. Het endpoint pad (`/api/hello`) staat als `private const`. Geregistreerd in `Program.cs` met `BearerTokenHandler`:
+Typed `HttpClient` voor de API. Endpoint paden staan als `private const`. Biedt twee methoden:
+
+| Methode | Endpoint | Vereiste rol |
+|---------|----------|--------------|
+| `GetHelloAsync()` | `GET /api/hello` | `user` |
+| `GetAdminAsync()` | `GET /api/admin` | `admin` |
+
+Geregistreerd in `Program.cs` met `BearerTokenHandler`:
 
 ```csharp
 builder.Services
@@ -451,6 +473,8 @@ Gebruiker klikt Inloggen → na login terug naar originele pagina
 
 ```
 HelloWorld.razor → HelloWorldApiClient.GetHelloAsync()
+       of
+Admin.razor → HelloWorldApiClient.GetAdminAsync()
         │
         ▼
 BearerTokenHandler pakt access_token uit sessiecookie

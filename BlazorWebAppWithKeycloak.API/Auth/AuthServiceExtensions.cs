@@ -34,10 +34,13 @@ public static class AuthServiceExtensions
 
         services.AddAuthorization(options =>
         {
-            // Policy die vereist dat de gebruiker de client-rol "user" heeft.
-            // RoleClaimType in ConfigureJwtBearerOptions zorgt dat dit correct werkt.
+            // Policy die vereist dat de gebruiker de client-rol "user" heeft
             options.AddPolicy("UserRole", policy =>
                 policy.RequireRole("user"));
+
+            // Policy die vereist dat de gebruiker de client-rol "admin" heeft
+            options.AddPolicy("AdminRole", policy =>
+                policy.RequireRole("admin"));
         });
 
         return services;

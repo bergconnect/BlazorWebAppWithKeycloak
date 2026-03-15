@@ -1,0 +1,26 @@
+{
+    "version": "1.0",
+    "pathFilters": [
+        "."
+    ],
+    "publicReleaseRefSpec": [
+        "^refs/heads/main$"
+    ],
+    "gitCommitIdShortFixedLength": 3,
+    "cloudBuild": {
+        "setVersionVariables": true,
+        "buildNumber": {
+            "enabled": false,
+            "includeCommitId": {
+                "when": "nonPublicReleaseOnly",
+                "where": "buildMetadata"
+            }
+        }
+    },
+    "release": {
+        "tagName": "v{version}",
+        "branchName": "v{version}",
+        "versionIncrement": "minor",
+        "firstUnstableTag": "alpha"
+    }
+}

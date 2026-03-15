@@ -7,11 +7,11 @@ namespace BlazorWebAppWithKeycloak.API.Extensions;
 public static class HelloEndpointExtensions
 {
     /// <summary>
-    /// Registreert GET /api/hello als minimaal API-endpoint.
-    /// Alleen toegankelijk voor gebruikers met de 'user' rol.
+    /// Registreert de Hello World-endpoints.
     /// </summary>
     public static IEndpointRouteBuilder MapHelloEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        // GET /api/hello — toegankelijk voor gebruikers met de 'user' rol
         endpoints.MapGet("/api/hello", (HttpContext ctx) =>
         {
             var username = ctx.User.Identity?.Name ?? "onbekend";
@@ -25,6 +25,21 @@ public static class HelloEndpointExtensions
         .WithName("HelloWorld")
         .WithSummary("Hello World endpoint — vereist de 'user' rol")
         .WithTags("Hello");
+
+        // GET /api/admin — toegankelijk voor gebruikers met de 'admin' rol
+        endpoints.MapGet("/api/admin", (HttpContext ctx) =>
+        {
+            var username = ctx.User.Identity?.Name ?? "onbekend";
+            return Results.Ok(new
+            {
+                Message = $"Welkom in het beheerdersgedeelte, {username}!",
+                Timestamp = DateTimeOffset.UtcNow
+            });
+        })
+        .RequireAuthorization("AdminRole")
+        .WithName("AdminHello")
+        .WithSummary("Admin endpoint — vereist de 'admin' rol")
+        .WithTags("Admin");
 
         return endpoints;
     }

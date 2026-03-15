@@ -11,8 +11,20 @@ namespace BlazorWebAppWithKeycloak.Auth;
 public static class AuthServiceExtensions
 {
     public static IServiceCollection AddKeycloakAuthentication(
-        this IServiceCollection services)
+        this IServiceCollection services,
+        IWebHostEnvironment environment)
     {
+        // Op HTTPS (productie achter reverse proxy) de Secure-flag instellen.
+        // Op HTTP (lokale development) is None vereist — browsers weigeren
+        // cookies met Secure-flag over HTTP, waardoor de OIDC-correlatie mislukt.
+        var securePolicy = environment.IsDevelopment()
+            ? CookieSecurePolicy.None
+            : CookieSecurePolicy.Always;
+
+        var sameSite = environment.IsDevelopment()
+            ? SameSiteMode.Unspecified
+            : SameSiteMode.Lax;
+
         services
             .AddOptions<KeycloakOptions>()
             .BindConfiguration(KeycloakOptions.SectionName)
@@ -31,22 +43,16 @@ public static class AuthServiceExtensions
             {
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-
-                // Beperk de cookie-levensduur expliciet.
-                // Standaard is dit een session cookie (verdwijnt bij sluiten browser),
-                // maar een expliciete timeout beschermt tegen langlopende sessies.
+                options.Cookie.SecurePolicy = securePolicy;
                 options.ExpireTimeSpan = TimeSpan.FromHours(8);
                 options.SlidingExpiration = true;
             })
             .AddOpenIdConnect(options =>
             {
-                // SameSite=Unspecified: geen SameSite-attribuut in de Set-Cookie header.
-                // Nodig voor cross-site redirects van Keycloak terug naar de app (HTTP).
-                options.CorrelationCookie.SameSite = SameSiteMode.Unspecified;
-                options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.None;
-                options.NonceCookie.SameSite = SameSiteMode.Unspecified;
-                options.NonceCookie.SecurePolicy = CookieSecurePolicy.None;
+                options.CorrelationCookie.SameSite = sameSite;
+                options.CorrelationCookie.SecurePolicy = securePolicy;
+                options.NonceCookie.SameSite = sameSite;
+                options.NonceCookie.SecurePolicy = securePolicy;
             });
 
         services.AddAuthorization();

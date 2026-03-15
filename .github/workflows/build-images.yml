@@ -21,8 +21,10 @@ jobs:
         include:
           - project: BlazorWebAppWithKeycloak
             name: APP
+            repository: ${{ vars.BLAZOR_REPOSITORY }}
           - project: BlazorWebAppWithKeycloak.API
             name: API
+            repository: ${{ vars.API_REPOSITORY }}
 
     name: Build ${{ matrix.name }}
 
@@ -44,7 +46,11 @@ jobs:
           path: ${{ matrix.project }}
 
       - name: Build and publish container image
-        run: dotnet publish -c Release /t:PublishContainer -p:ContainerImageTags='"latest;${{ steps.nbgv.outputs.SemVer2 }}"'
+        run: |
+          dotnet publish -c Release /t:PublishContainer \
+            -p:ContainerRegistry=${{ secrets.CONTAINER_REGISTRY }} \
+            -p:ContainerRepository=${{ matrix.repository }} \
+            -p:ContainerImageTags='"latest;${{ steps.nbgv.outputs.SemVer2 }}"'
         working-directory: ${{ matrix.project }}
         env:
           SDK_CONTAINER_REGISTRY_UNAME: ${{ secrets.DOCKER_USER }}

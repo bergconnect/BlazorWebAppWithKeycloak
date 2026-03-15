@@ -2,6 +2,7 @@ using BlazorWebAppWithKeycloak.Auth;
 using BlazorWebAppWithKeycloak.Components;
 using BlazorWebAppWithKeycloak.Services;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,7 +11,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // ─── Authenticatie & autorisatie ─────────────────────────────────────────────
-builder.Services.AddKeycloakAuthentication();
+builder.Services.AddKeycloakAuthentication(builder.Environment);
 
 // ─── Data Protection ─────────────────────────────────────────────────────────
 var keysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/app/keys";
@@ -21,8 +22,6 @@ builder.Services
     .SetApplicationName("BlazorWebAppWithKeycloak");
 
 // ─── API Client ───────────────────────────────────────────────────────────────
-// BearerTokenHandler leest het access token uit de huidige HTTP-context
-// en voegt het toe als Authorization Bearer header aan elke API-aanroep.
 builder.Services.AddScoped<BearerTokenHandler>();
 
 builder.Services
@@ -34,23 +33,35 @@ builder.Services
     })
     .AddHttpMessageHandler<BearerTokenHandler>();
 
+// ─── Forwarded Headers (alleen productie) ────────────────────────────────────
+// Verwerk X-Forwarded-Proto van de reverse proxy zodat ASP.NET Core
+// https://<app-domein> als basis-URL gebruikt voor redirect URIs.
+// Lokaal (Development) is er geen proxy en worden deze headers niet ingeschakeld.
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders =
+            ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        // Vertrouw alle proxies in het interne netwerk.
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
+
 var app = builder.Build();
 
 // ─── Middleware pipeline ──────────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
+if (!app.Environment.IsDevelopment())
 {
-    app.UseDeveloperExceptionPage();
+    // Forwarded headers EERST verwerken zodat alle volgende middleware
+    // de correcte protocol- en host-informatie ziet.
+    app.UseForwardedHeaders();
+    app.UseExceptionHandler("/Error");
 }
 else
 {
-    app.UseExceptionHandler("/Error");
-
-    if (builder.Configuration["ASPNETCORE_URLS"]?.Contains("https") == true ||
-        builder.Configuration["ASPNETCORE_HTTPS_PORT"] != null)
-    {
-        app.UseHsts();
-        app.UseHttpsRedirection();
-    }
+    app.UseDeveloperExceptionPage();
 }
 
 app.UseStaticFiles();

@@ -13,12 +13,16 @@
 5. [Handmatig: client rollen aanmaken](#5-handmatig-client-rollen-aanmaken)
 6. [Gebruiker aanmaken en rol toewijzen](#6-gebruiker-aanmaken-en-rol-toewijzen)
 7. [Bijlagen](#bijlagen)
+   - [Bijlage A — Handige URLs](#bijlage-a--handige-urls)
+   - [Bijlage B — Container beheren](#bijlage-b--container-beheren)
+   - [Bijlage C — Probleemoplossing](#bijlage-c--probleemoplossing)
+   - [Bijlage D — Voorbeeld docker-compose.yml](#bijlage-d--voorbeeld-docker-composeyml)
 
 ---
 
 ## 1. Keycloak opstarten via Docker Compose
 
-De aanbevolen manier om Keycloak en de Blazor Web App samen te draaien is via de meegeleverde `docker-compose.yml`.
+De aanbevolen manier om Keycloak, de Blazor Web App en de API samen te draaien is via de meegeleverde `docker-compose.yml`.
 
 ### 1.1 Vereisten
 
@@ -42,7 +46,11 @@ KEYCLOAK_CLIENT_SECRET=jouw-client-secret-hier
 docker compose up -d
 ```
 
-Keycloak is beschikbaar op `http://<host-ip>:8082` en de Blazor app op `http://<host-ip>:5000`.
+| Service    | URL                            |
+|------------|--------------------------------|
+| Keycloak   | `http://<host-ip>:8082`        |
+| Blazor app | `http://<host-ip>:5000`        |
+| API        | `http://<host-ip>:5001`        |
 
 ### 1.4 Beheerconsole
 
@@ -139,12 +147,12 @@ Klik in het linkermenu op **Clients** → **Create client**.
 
 ### Stap 3 — Capability Config
 
-| Instelling            | Waarde | Toelichting                                    |
-|-----------------------|--------|------------------------------------------------|
-| Client authentication | `ON`   | Confidential client met client secret          |
-| Authorization         | `OFF`  |                                                |
-| Standard flow         | `ON`   | Authorization Code Flow via browser            |
-| Direct access grants  | `OFF`  |                                                |
+| Instelling            | Waarde | Toelichting                                 |
+|-----------------------|--------|---------------------------------------------|
+| Client authentication | `ON`   | Confidential client met client secret       |
+| Authorization         | `OFF`  |                                             |
+| Standard flow         | `ON`   | Authorization Code Flow via browser         |
+| Direct access grants  | `OFF`  |                                             |
 
 ### Stap 4 — Login Settings
 
@@ -162,19 +170,15 @@ Klik op **Save**.
 
 Klik op het tabblad **Credentials** en kopieer de waarde bij **Client secret**.
 
-Sla het op via user-secrets (development):
-
 ```bash
+# Development
 dotnet user-secrets set "Keycloak:ClientSecret" "jouw-secret"
-```
 
-Of via omgevingsvariabele (productie/Docker):
-
-```bash
+# Productie / Docker
 export Keycloak__ClientSecret="jouw-secret"
 ```
 
-### Stap 6 — Rollen in token opnemen
+### Stap 6 — Rollen in token opnemen (client-roles mapper)
 
 Standaard worden client-rollen niet als platte claim meegestuurd. Voeg een mapper toe:
 
@@ -190,9 +194,28 @@ Standaard worden client-rollen niet als platte claim meegestuurd. Voeg een mappe
 | Token Claim Name | `roles`          |
 | Claim JSON Type  | `String`         |
 | Add to ID token  | `ON`             |
+| Add to access token | `ON`          |
 | Add to userinfo  | `ON`             |
 
 Klik op **Save**.
+
+### Stap 7 — Audience mapper toevoegen
+
+De API valideert het `aud`-veld in het access token. Zonder deze mapper bevat het token alleen `"aud": "account"` en weigert de API het token.
+
+Klik op **Configure a new mapper** → kies **Audience**:
+
+| Veld                       | Waarde           |
+|----------------------------|------------------|
+| Name                       | `audience`       |
+| Included Client Audience   | `blazor-web-app` |
+| Add to ID token            | `OFF`            |
+| Add to access token        | `ON`             |
+| Add to token introspection | `ON`             |
+
+Klik op **Save**.
+
+> Na het toevoegen van deze mapper moet de gebruiker opnieuw inloggen zodat een nieuw token met de juiste audience wordt uitgegeven. Verifieer via jwt.io dat `"aud"` nu `["blazor-web-app", "account"]` bevat.
 
 ---
 
@@ -202,17 +225,17 @@ Ga naar **Clients** → `blazor-web-app` → **Roles** → **Create role**.
 
 ### Rol `admin`
 
-| Veld        | Waarde                                                                                         |
-|-------------|------------------------------------------------------------------------------------------------|
-| Role name   | `admin`                                                                                        |
-| Description | `Volledige beheertoegang. Toegang tot alle pagina's inclusief beheer en instellingen.`         |
+| Veld        | Waarde                                                                         |
+|-------------|--------------------------------------------------------------------------------|
+| Role name   | `admin`                                                                        |
+| Description | `Volledige beheertoegang. Toegang tot alle pagina's inclusief beheer en instellingen.` |
 
 ### Rol `user`
 
-| Veld        | Waarde                                                                                         |
-|-------------|------------------------------------------------------------------------------------------------|
-| Role name   | `user`                                                                                         |
-| Description | `Standaard gebruikersrol. Geeft toegang tot het dashboard en gedeeld portaal.`                 |
+| Veld        | Waarde                                                                         |
+|-------------|--------------------------------------------------------------------------------|
+| Role name   | `user`                                                                         |
+| Description | `Standaard gebruikersrol. Geeft toegang tot het dashboard en gedeeld portaal.` |
 
 ---
 
@@ -248,16 +271,21 @@ Selecteer `admin` of `user` onder **blazor-web-app** en klik op **Assign**.
 
 1. Ga naar **Clients** → `blazor-web-app` → **Client scopes** → **Evaluate**
 2. Selecteer de gebruiker
-3. Klik op **Generated ID token**
+3. Klik op **Generated access token**
 
-Het token moet de `roles`-claim bevatten:
+Het token moet bevatten:
 
 ```json
 {
+  "aud": ["blazor-web-app", "account"],
   "preferred_username": "jan.de.vries",
   "roles": ["admin", "user"]
 }
 ```
+
+> Als `roles` ontbreekt: controleer of **Client ID** in de mapper exact `blazor-web-app` is (hoofdlettergevoelig) en **Multivalued** op `ON` staat.
+>
+> Als `aud` alleen `account` bevat: controleer of de audience mapper is aangemaakt (stap 7) en log opnieuw in.
 
 ---
 
@@ -267,10 +295,13 @@ Het token moet de `roles`-claim bevatten:
 
 | Doel                      | URL                                                                      |
 |---------------------------|--------------------------------------------------------------------------|
-| Beheerconsole             | `http://<host>:8082/admin`                                               |
+| Keycloak beheerconsole    | `http://<host>:8082/admin`                                               |
 | Gebruikersportaal         | `http://<host>:8082/realms/homelab/account`                              |
 | OIDC discovery endpoint   | `http://<host>:8082/realms/homelab/.well-known/openid-configuration`     |
 | Blazor Web App            | `http://<host>:5000`                                                     |
+| API                       | `http://<host>:5001`                                                     |
+| API Hello endpoint        | `http://<host>:5001/api/hello`                                           |
+| API OpenAPI (development) | `http://<host>:5001/openapi/v1.json`                                     |
 
 ### Bijlage B — Container beheren
 
@@ -290,6 +321,7 @@ docker compose down -v
 # Logs bekijken
 docker compose logs -f keycloak
 docker compose logs -f blazor
+docker compose logs -f api
 
 # Nieuwste images ophalen en herstarten
 docker compose pull
@@ -301,7 +333,102 @@ docker compose up -d
 | Probleem | Oorzaak | Oplossing |
 |----------|---------|-----------|
 | `Correlation failed` | Correlation cookie wordt niet teruggestuurd door browser | Controleer `SameSite=Unspecified` en `SecurePolicy=None` op correlation-cookies in `AuthServiceExtensions.cs` |
-| `Key not found in key ring` | Data Protection keys niet persistent | Controleer of het volume `/app/keys` correct gemount is en `PersistKeysToFileSystem` in `Program.cs` staat |
-| `Unable to obtain configuration` | Blazor container kan Keycloak niet bereiken | Controleer `MetadataAddress` — moet de interne Docker hostnaam gebruiken (`http://keycloak:8082/...`) |
-| `invalid_request: Authentication failed` | PAR niet ingeschakeld in Keycloak | `PushedAuthorizationBehavior.Disable` staat in `ConfigureKeycloakOptions.cs`; controleer of de nieuwe image is gedeployd |
-| Rollen werken niet in `AuthorizeView` | `RoleClaimType` klopt niet | Controleer dat `RoleClaimType` het Microsoft schema-URI is: `http://schemas.microsoft.com/ws/2008/06/identity/claims/role` |
+| `Key not found in key ring` | Data Protection keys niet persistent | Controleer of volume `/app/keys` gemount is en `PersistKeysToFileSystem` in `Program.cs` staat |
+| `Unable to obtain configuration` | Blazor/API kan Keycloak niet bereiken | Controleer `MetadataAddress` — moet de interne Docker hostnaam gebruiken (`http://keycloak:8082/...`) |
+| `invalid_request: Authentication failed` | PAR niet geconfigureerd | `PushedAuthorizationBehavior.Disable` in `ConfigureKeycloakOptions.cs`; controleer of nieuwe image is gedeployd |
+| `Audience validation failed` | Audience mapper ontbreekt of token niet vernieuwd | Voeg audience mapper toe (stap 7), log uit en opnieuw in |
+| Rollen werken niet in `AuthorizeView` | `RoleClaimType` klopt niet | Controleer `RoleClaimType = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"` in beide projecten |
+| API geeft 401 terug | Token niet meegestuurd of `SaveTokens = false` | Controleer `SaveTokens = true` in `ConfigureKeycloakOptions.cs` en `BearerTokenHandler` in `Services/` |
+
+## Bijlage D — Voorbeeld docker-compose.yml
+
+Sla dit bestand op als `docker-compose.yml` naast `realm-export.json` en een `.env` bestand.
+
+**.env:**
+```
+KEYCLOAK_CLIENT_SECRET=jouw-client-secret-hier
+```
+
+**docker-compose.yml:**
+```yaml
+services:
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    pull_policy: always
+    container_name: keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8082
+      # Publieke hostname — Keycloak gebruikt dit als issuer in tokens
+      # en voor het genereren van redirect-URLs.
+      KC_HOSTNAME: 192.168.2.43
+      KC_HOSTNAME_PORT: 8082
+      KC_HOSTNAME_STRICT: false
+    ports:
+      - "8082:8082"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+
+  blazor:
+    image: git.berg-connect.nl/lvdberg/demo:latest
+    pull_policy: always
+    container_name: blazor
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Authority = publieke URL: browser redirects + issuer-validatie van tokens.
+      # Moet overeenkomen met KC_HOSTNAME zodat de issuer in tokens klopt.
+      - Keycloak__Authority=http://192.168.2.43:8082/realms/homelab
+      - Keycloak__ClientId=blazor-web-app
+      - Keycloak__ClientSecret=${KEYCLOAK_CLIENT_SECRET}
+      - Keycloak__RequireHttpsMetadata=false
+      - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
+      # Interne Docker URL naar de API-container
+      - ApiSettings__BaseUrl=http://api:8080
+    volumes:
+      # Data Protection keys persistent opslaan zodat cookies
+      # container-herstarts overleven
+      - dataprotection-keys:/app/keys
+    depends_on:
+      - keycloak
+      - api
+
+  api:
+    image: git.berg-connect.nl/lvdberg/demo-api:latest
+    pull_policy: always
+    container_name: api
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
+      # Authority = publieke URL voor issuer-validatie van inkomende JWT-tokens.
+      - Keycloak__Authority=http://192.168.2.43:8082/realms/homelab
+      # MetadataAddress = interne Docker URL voor het ophalen van JWKS-sleutels.
+      # De server communiceert intern; de browser heeft deze URL niet nodig.
+      - Keycloak__MetadataAddress=http://keycloak:8082/realms/homelab/.well-known/openid-configuration
+      - Keycloak__ClientId=blazor-web-app
+      - Keycloak__RequireHttpsMetadata=false
+    depends_on:
+      - keycloak
+
+volumes:
+  keycloak_data:
+  dataprotection-keys:
+```
+
+### URL-splitsing uitgelegd
+
+| Service | Instelling | Waarde | Reden |
+|---------|------------|--------|-------|
+| Keycloak | `KC_HOSTNAME` | `192.168.2.43` | Genereert publieke URLs in tokens en redirects |
+| Blazor | `Authority` | `http://192.168.2.43:8082/...` | Issuer in tokens matcht de publieke hostname |
+| API | `Authority` | `http://192.168.2.43:8082/...` | Valideert issuer van inkomende JWT-tokens |
+| API | `MetadataAddress` | `http://keycloak:8082/...` | Haalt JWKS intern op via Docker-netwerk |
+
+> **Pas `192.168.2.43` aan** naar het IP-adres of de hostname van jouw server. Vervang ook de image-namen naar de juiste registry-paden.

@@ -8,17 +8,10 @@ namespace BlazorWebAppWithKeycloak.API.Auth;
 /// Configureert <see cref="JwtBearerOptions"/> met waarden uit <see cref="KeycloakOptions"/>
 /// via de Options-pattern, zonder BuildServiceProvider() aan te roepen.
 /// </summary>
-public sealed class ConfigureJwtBearerOptions : IConfigureNamedOptions<JwtBearerOptions>
+public sealed class ConfigureJwtBearerOptions(IOptions<KeycloakOptions> keycloakOptions)
+    : IConfigureNamedOptions<JwtBearerOptions>
 {
-    private const string RoleClaimType =
-        "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
-
-    private readonly KeycloakOptions _keycloak;
-
-    public ConfigureJwtBearerOptions(IOptions<KeycloakOptions> keycloakOptions)
-    {
-        _keycloak = keycloakOptions.Value;
-    }
+    private readonly KeycloakOptions _keycloak = keycloakOptions.Value;
 
     public void Configure(string? name, JwtBearerOptions options)
     {
@@ -35,15 +28,17 @@ public sealed class ConfigureJwtBearerOptions : IConfigureNamedOptions<JwtBearer
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidateLifetime = true,
-            NameClaimType = "preferred_username",
-            RoleClaimType = RoleClaimType,
-
-            // Accepteer zowel "blazor-web-app" als "account" als geldige audience.
-            // "account" is de Keycloak standaard totdat de audience-mapper actief is.
-            // Zodra de mapper is geconfigureerd en het token "blazor-web-app" bevat,
-            // kan ValidAudiences worden teruggebracht tot alleen "blazor-web-app".
             ValidateAudience = true,
+            ValidateLifetime = true,
+
+            // Sta geen klokafwijking toe groter dan 30 seconden.
+            // Standaard is dit 5 minuten, wat een aanvaller ruimte geeft
+            // om verlopen tokens te hergebruiken.
+            ClockSkew = TimeSpan.FromSeconds(30),
+
+            NameClaimType = "preferred_username",
+            RoleClaimType = KeycloakOptions.RoleClaimType,
+
             ValidAudiences = [_keycloak.ClientId, "account"],
 
             ValidIssuers = string.IsNullOrEmpty(_keycloak.MetadataAddress)

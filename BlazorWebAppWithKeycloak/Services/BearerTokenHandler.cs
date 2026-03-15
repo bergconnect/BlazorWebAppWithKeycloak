@@ -24,6 +24,13 @@ public sealed class BearerTokenHandler(IHttpContextAccessor httpContextAccessor)
                 request.Headers.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
             }
+            else
+            {
+                // Geen token beschikbaar: verzoek niet doorsturen zonder authenticatie.
+                // Dit voorkomt dat anonieme requests de API bereiken als
+                // de sessie is verlopen maar de HttpContext nog beschikbaar is.
+                return new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
+            }
         }
 
         return await base.SendAsync(request, cancellationToken);

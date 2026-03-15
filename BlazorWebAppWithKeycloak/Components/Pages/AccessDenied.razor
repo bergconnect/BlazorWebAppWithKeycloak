@@ -1,5 +1,6 @@
 @page "/niet-aangemeld"
 @layout MainLayout
+@inject NavigationManager Navigation
 
 <PageTitle>Niet aangemeld</PageTitle>
 
@@ -7,5 +8,14 @@
     <div class="mb-4" style="font-size: 4rem;">🔒</div>
     <h1 class="mb-2">Niet aangemeld</h1>
     <p class="text-muted mb-4">U moet ingelogd zijn om deze pagina te bekijken.</p>
-    <a href="/login" class="btn btn-primary px-4">Inloggen via Keycloak</a>
+    <a href="@LoginUrl" class="btn btn-primary px-4">Inloggen via Keycloak</a>
 </div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private string LoginUrl => string.IsNullOrEmpty(ReturnUrl)
+        ? "/login"
+        : $"/login?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
+}

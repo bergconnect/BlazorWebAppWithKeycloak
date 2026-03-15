@@ -31,7 +31,7 @@ public static class AuthServiceExtensions
             {
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.None;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 
                 // Beperk de cookie-levensduur expliciet.
                 // Standaard is dit een session cookie (verdwijnt bij sluiten browser),

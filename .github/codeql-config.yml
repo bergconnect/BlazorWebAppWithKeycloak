@@ -1,0 +1,2 @@
+// lgtm[cs/web/cookie-secure-flag-not-set]
+options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.None;

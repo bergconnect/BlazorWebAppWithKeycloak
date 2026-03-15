@@ -31,22 +31,19 @@ public static class AuthServiceExtensions
             {
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
+                // Op HTTPS kan de Secure-flag veilig worden ingesteld.
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-
-                // Beperk de cookie-levensduur expliciet.
-                // Standaard is dit een session cookie (verdwijnt bij sluiten browser),
-                // maar een expliciete timeout beschermt tegen langlopende sessies.
                 options.ExpireTimeSpan = TimeSpan.FromHours(8);
                 options.SlidingExpiration = true;
             })
             .AddOpenIdConnect(options =>
             {
-                // SameSite=Unspecified: geen SameSite-attribuut in de Set-Cookie header.
-                // Nodig voor cross-site redirects van Keycloak terug naar de app (HTTP).
-                options.CorrelationCookie.SameSite = SameSiteMode.Unspecified;
-                options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.None;
-                options.NonceCookie.SameSite = SameSiteMode.Unspecified;
-                options.NonceCookie.SecurePolicy = CookieSecurePolicy.None;
+                // Op HTTPS werkt SameSite=Lax correct voor cross-site redirects.
+                // De Secure-flag zorgt dat cookies alleen over HTTPS worden verstuurd.
+                options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.NonceCookie.SameSite = SameSiteMode.Lax;
+                options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
             });
 
         services.AddAuthorization();

@@ -44,10 +44,6 @@ public sealed class ConfigureKeycloakOptions
 
         options.RequireHttpsMetadata = _keycloak.RequireHttpsMetadata;
         options.TokenValidationParameters.NameClaimType = "preferred_username";
-
-        // Rollen komen binnen via het standaard Microsoft role claim URI.
-        // Dit zorgt dat [Authorize(Roles="admin")] en <AuthorizeView Roles="admin">
-        // correct werken zonder extra claim mapping.
         options.TokenValidationParameters.RoleClaimType = RoleClaimType;
 
         // ASP.NET Core 9+ stuurt standaard PAR-requests. Keycloak vereist

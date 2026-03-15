@@ -10,11 +10,6 @@ namespace BlazorWebAppWithKeycloak.Auth;
 /// </summary>
 public static class AuthEndpointExtensions
 {
-    /// <summary>
-    /// Registreert GET /login en GET /logout als minimale API-endpoints.
-    /// Moet aangeroepen worden vóór MapRazorComponents zodat Blazor
-    /// deze routes niet onderschept.
-    /// </summary>
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapLoginEndpoint();
@@ -26,7 +21,6 @@ public static class AuthEndpointExtensions
     {
         endpoints.MapGet("/login", async (HttpContext ctx, string? returnUrl) =>
         {
-            // Valideer returnUrl om open-redirect aanvallen te voorkomen
             var redirectUri = IsLocalUrl(returnUrl) ? returnUrl! : "/";
 
             await ctx.ChallengeAsync(
@@ -41,11 +35,11 @@ public static class AuthEndpointExtensions
     {
         endpoints.MapGet("/logout", async (HttpContext ctx) =>
         {
-            // Alleen de lokale applicatiesessie (cookie) beëindigen.
-            // Het OIDC-scheme wordt bewust NIET uitgetekend zodat de
-            // Keycloak SSO-sessie actief blijft voor andere applicaties.
+            // Verwijder zowel de applicatiecookie als de OIDC-sessie.
+            // SignOut op beide schemes zorgt dat Keycloak ook de SSO-sessie
+            // beëindigt en de gebruiker niet automatisch opnieuw inlogt.
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            ctx.Response.Redirect("/");
+            await ctx.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
         })
         .RequireAuthorization()
         .DisableAntiforgery();
@@ -61,6 +55,9 @@ public static class AuthEndpointExtensions
             return false;
 
         // Moet beginnen met "/" maar niet met "//" (protocol-relative redirect)
-        return url.StartsWith('/') && !url.StartsWith("//");
+        // en niet met "/\" (Windows path separator trick)
+        return url.StartsWith('/') 
+            && !url.StartsWith("//") 
+            && !url.StartsWith("/\\");
     }
 }

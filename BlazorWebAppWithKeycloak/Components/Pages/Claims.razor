@@ -1,6 +1,5 @@
 @page "/claims"
 @rendermode InteractiveServer
-@attribute [Authorize]
 
 @inject IHttpContextAccessor HttpContextAccessor
 
@@ -95,6 +94,9 @@
             </div>
         }
     </Authorized>
+    <NotAuthorized>
+        <RedirectToNotLoggedIn />
+    </NotAuthorized>
 </AuthorizeView>
 
 @code {

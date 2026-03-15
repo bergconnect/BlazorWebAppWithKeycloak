@@ -1,4 +1,5 @@
 using BlazorWebAppWithKeycloak.API.Auth;
+using BlazorWebAppWithKeycloak.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,20 +22,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
-
-// GET /api/hello — alleen toegankelijk voor gebruikers met de "user" rol
-app.MapGet("/api/hello", (HttpContext ctx) =>
-{
-    var username = ctx.User.Identity?.Name ?? "onbekend";
-    return Results.Ok(new
-    {
-        Message = $"Hallo, {username}!",
-        Timestamp = DateTimeOffset.UtcNow
-    });
-})
-.RequireAuthorization("UserRole")
-.WithName("HelloWorld")
-.WithSummary("Hello World endpoint — vereist de 'user' rol")
-.WithTags("Hello");
+app.MapHelloEndpoints();
 
 app.Run();

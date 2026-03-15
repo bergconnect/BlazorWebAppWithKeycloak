@@ -11,6 +11,13 @@ public sealed class KeycloakOptions
     public const string SectionName = "Keycloak";
 
     /// <summary>
+    /// Gedeeld role claim type — consistent met de Blazor Web App instelling.
+    /// ASP.NET Core mapt Keycloak-rollen naar dit Microsoft schema-URI.
+    /// </summary>
+    public const string RoleClaimType =
+        "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
+
+    /// <summary>
     /// De publieke Authority URL, inclusief realm-pad.
     /// Wordt gebruikt voor JWT-issuer validatie en het ophalen van de JWKS.
     /// </summary>

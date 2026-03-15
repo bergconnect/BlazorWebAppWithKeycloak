@@ -9,9 +9,6 @@ namespace BlazorWebAppWithKeycloak.API.Auth;
 /// </summary>
 public static class AuthServiceExtensions
 {
-    private const string RoleClaimType =
-        "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
-
     /// <summary>
     /// Registreert Keycloak JWT Bearer-authenticatie voor de API.
     /// Tokens worden gevalideerd op issuer, audience en handtekening via JWKS.
@@ -27,7 +24,7 @@ public static class AuthServiceExtensions
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+            .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, _ =>
             {
                 // Opties worden ingevuld via IConfigureOptions zodat we
                 // geen BuildServiceProvider() hoeven aan te roepen.
@@ -37,7 +34,8 @@ public static class AuthServiceExtensions
 
         services.AddAuthorization(options =>
         {
-            // Policy die vereist dat de gebruiker de client-rol "user" heeft
+            // Policy die vereist dat de gebruiker de client-rol "user" heeft.
+            // RoleClaimType in ConfigureJwtBearerOptions zorgt dat dit correct werkt.
             options.AddPolicy("UserRole", policy =>
                 policy.RequireRole("user"));
         });

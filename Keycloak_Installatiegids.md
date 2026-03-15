@@ -33,7 +33,11 @@ De aanbevolen manier om Keycloak, de Blazor Web App en de API samen te draaien i
 Maak een `.env` bestand aan naast `docker-compose.yml`:
 
 ```
-KEYCLOAK_CLIENT_SECRET=jouw-client-secret-hier
+KEYCLOAK_CLIENT_SECRET="jouw-client-secret"
+KEYCLOAK_CLIENT_ID="blazor-web-app"
+KEYCLOAK_AUTHORITY="https://<keycloak-domein>/realms/<realm>"
+BLAZOR_IMAGE=<jouw-registry>/demo:latest
+API_IMAGE=<jouw-registry>/demo-api:latest
 ```
 
 > Voeg `.env` toe aan `.gitignore` zodat het secret niet in versiebeheer terechtkomt.
@@ -46,8 +50,8 @@ docker compose up -d
 
 | Service    | URL                            |
 |------------|--------------------------------|
-| Keycloak (gehost) | `https://idp.berg-connect.nl`  |
-| Blazor app        | `https://demo.berg-connect.nl` |
+| Keycloak (gehost) | `https://<keycloak-domein>`  |
+| Blazor app        | `https://<app-domein>` |
 | API (intern)      | `http://<host-ip>:5001`        |
 
 ### 1.4 Beheerconsole
@@ -249,10 +253,10 @@ Het token moet bevatten:
 
 | Doel                      | URL                                                                      |
 |---------------------------|--------------------------------------------------------------------------|
-| Keycloak beheerconsole    | `https://idp.berg-connect.nl/admin`                                                    |
-| Gebruikersportaal         | `https://idp.berg-connect.nl/realms/homelab/account`                                   |
-| OIDC discovery endpoint   | `https://idp.berg-connect.nl/realms/homelab/.well-known/openid-configuration`          |
-| Blazor Web App            | `https://demo.berg-connect.nl`                                                         |
+| Keycloak beheerconsole    | `https://<keycloak-domein>/admin`                                                    |
+| Gebruikersportaal         | `https://<keycloak-domein>/realms/<realm>/account`                                   |
+| OIDC discovery endpoint   | `https://<keycloak-domein>/realms/<realm>/.well-known/openid-configuration`          |
+| Blazor Web App            | `https://<app-domein>`                                                         |
 | API (intern)              | `http://<host>:5001`                                                                   |
 | API Hello endpoint        | `http://<host>:5001/api/hello`                                                         |
 | API OpenAPI (development) | `http://localhost:5114/openapi/v1.json`                                                |
@@ -300,7 +304,9 @@ Sla dit bestand op als `docker-compose.yml` naast een `.env` bestand.
 
 **.env** (kopieer van `.env.example` en vul in):
 ```
-KEYCLOAK_CLIENT_SECRET=jouw-client-secret-hier
+KEYCLOAK_CLIENT_SECRET="jouw-client-secret"
+KEYCLOAK_CLIENT_ID="blazor-web-app"
+KEYCLOAK_AUTHORITY="https://<keycloak-domein>/realms/<realm>"
 BLAZOR_IMAGE=<jouw-registry>/demo:latest
 API_IMAGE=<jouw-registry>/demo-api:latest
 ```
@@ -320,10 +326,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       # Laat ASP.NET Core de X-Forwarded-Proto header van de reverse proxy verwerken
-      # zodat https://demo.berg-connect.nl als basis-URL wordt gebruikt.
+      # zodat https://<app-domein> als basis-URL wordt gebruikt.
       - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
-      - Keycloak__Authority=https://idp.berg-connect.nl/realms/homelab
-      - Keycloak__ClientId=blazor-web-app
+      - Keycloak__Authority=${KEYCLOAK_AUTHORITY}
+      - Keycloak__ClientId=${KEYCLOAK_CLIENT_ID}
       - Keycloak__ClientSecret=${KEYCLOAK_CLIENT_SECRET}
       - Keycloak__RequireHttpsMetadata=true
       - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
@@ -342,8 +348,8 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
-      - Keycloak__Authority=https://idp.berg-connect.nl/realms/homelab
-      - Keycloak__ClientId=blazor-web-app
+      - Keycloak__Authority=${KEYCLOAK_AUTHORITY}
+      - Keycloak__ClientId=${KEYCLOAK_CLIENT_ID}
       - Keycloak__RequireHttpsMetadata=true
 
 volumes:
@@ -354,7 +360,7 @@ volumes:
 
 | Omgeving | Blazor | API | Keycloak |
 |----------|--------|-----|---------|
-| Productie | `https://demo.berg-connect.nl` | `http://<host>:5001` (intern) | `https://idp.berg-connect.nl` |
-| Development | `http://localhost:5000` | `http://localhost:5114` | `https://idp.berg-connect.nl` |
+| Productie | `https://<app-domein>` | `http://<host>:5001` (intern) | `https://<keycloak-domein>` |
+| Development | `http://localhost:5000` | `http://localhost:5114` | `https://<keycloak-domein>` |
 
 > Image-namen worden ingelezen uit het `.env` bestand — pas `.env` aan voor jouw registry zonder de `docker-compose.yml` te wijzigen.

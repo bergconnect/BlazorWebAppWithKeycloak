@@ -35,7 +35,7 @@ builder.Services
 
 // ─── Forwarded Headers (alleen productie) ────────────────────────────────────
 // Verwerk X-Forwarded-Proto van de reverse proxy zodat ASP.NET Core
-// https://demo.berg-connect.nl als basis-URL gebruikt voor redirect URIs.
+// https://<app-domein> als basis-URL gebruikt voor redirect URIs.
 // Lokaal (Development) is er geen proxy en worden deze headers niet ingeschakeld.
 if (!builder.Environment.IsDevelopment())
 {

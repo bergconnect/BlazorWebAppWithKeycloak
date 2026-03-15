@@ -119,8 +119,8 @@ solution/
 ```json
 {
   "Keycloak": {
-    "Authority": "https://idp.berg-connect.nl/realms/homelab",
-    "ClientId": "blazor-web-app",
+    "Authority": "https://<keycloak-domein>/realms/<realm>",
+    "ClientId": "<client-id>",
     "ClientSecret": "",
     "RequireHttpsMetadata": true
   },
@@ -144,8 +144,8 @@ solution/
 ```json
 {
   "Keycloak": {
-    "Authority": "https://idp.berg-connect.nl/realms/homelab",
-    "ClientId": "blazor-web-app",
+    "Authority": "https://<keycloak-domein>/realms/<realm>",
+    "ClientId": "<client-id>",
     "RequireHttpsMetadata": true
   }
 }
@@ -390,18 +390,20 @@ Immutable `record` model. Staat in een apart bestand in plaats van als private n
 
 ### URL-configuratie per service
 
-De app draait achter een reverse proxy op `https://demo.berg-connect.nl`. Keycloak is gehost op `https://idp.berg-connect.nl`. Beide services communiceren direct met de hosted Keycloak zonder interne MetadataAddress.
+De app draait achter een reverse proxy op `https://<app-domein>`. Keycloak is gehost op `https://<keycloak-domein>`. Beide services communiceren direct met de hosted Keycloak zonder interne MetadataAddress.
 
 **Blazor:**
 ```yaml
 - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
-- Keycloak__Authority=https://idp.berg-connect.nl/realms/homelab
+- Keycloak__Authority=${KEYCLOAK_AUTHORITY}
+- Keycloak__ClientId=${KEYCLOAK_CLIENT_ID}
 - Keycloak__RequireHttpsMetadata=true
 ```
 
 **API:**
 ```yaml
-- Keycloak__Authority=https://idp.berg-connect.nl/realms/homelab
+- Keycloak__Authority=${KEYCLOAK_AUTHORITY}
+- Keycloak__ClientId=${KEYCLOAK_CLIENT_ID}
 - Keycloak__RequireHttpsMetadata=true
 ```
 
@@ -435,7 +437,7 @@ De Blazor app draait achter een reverse proxy (Nginx Proxy Manager) die TLS term
 
 ### ForwardedHeaders middleware
 
-In `Program.cs` wordt `UseForwardedHeaders()` ingeschakeld **alleen buiten Development**. Dit zorgt dat ASP.NET Core de forwarded headers verwerkt en `https://demo.berg-connect.nl` als basis-URL gebruikt voor OIDC redirect URIs:
+In `Program.cs` wordt `UseForwardedHeaders()` ingeschakeld **alleen buiten Development**. Dit zorgt dat ASP.NET Core de forwarded headers verwerkt en `https://<app-domein>` als basis-URL gebruikt voor OIDC redirect URIs:
 
 ```csharp
 if (!builder.Environment.IsDevelopment())
@@ -471,7 +473,19 @@ strategy:
         name: API
 ```
 
-Elke job voert uit: checkout → .NET setup → GitVersion (nbgv) → `dotnet publish /t:PublishContainer`. Verwijder de oude losse `build-image-app.yml` en `build-image-api.yml` workflows.
+Elke job voert uit: checkout → .NET setup → GitVersion (nbgv) → `dotnet publish /t:PublishContainer`.
+
+### Benodigde GitHub Secrets
+
+Stel deze secrets in via **GitHub → Repository → Settings → Secrets and variables → Actions**:
+
+| Secret | Waarde | Toelichting |
+|--------|--------|-------------|
+| `CONTAINER_REGISTRY` | `<jouw-registry>` | Hostname van de container registry, bijv. `registry.voorbeeld.nl` |
+| `DOCKER_USER` | `<registry-gebruikersnaam>` | Gebruikersnaam voor authenticatie bij de registry |
+| `DOCKER_PASSWORD` | `<registry-wachtwoord>` | Wachtwoord of access token voor de registry |
+
+De `CONTAINER_REGISTRY` secret wordt doorgegeven als `-p:ContainerRegistry` aan `dotnet publish`, zodat de registry-hostname niet in de `.csproj` bestanden hoeft te staan.
 
 ---
 

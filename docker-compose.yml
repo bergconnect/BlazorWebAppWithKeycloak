@@ -1,0 +1,37 @@
+services:
+
+  blazor:
+    image: ${BLAZOR_IMAGE}
+    pull_policy: always
+    container_name: blazor
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+      - Keycloak__Authority=${KEYCLOAK_AUTHORITY}
+      - Keycloak__ClientId=${KEYCLOAK_CLIENT_ID}
+      - Keycloak__ClientSecret=${KEYCLOAK_CLIENT_SECRET}
+      - Keycloak__RequireHttpsMetadata=true
+      - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
+      - ApiSettings__BaseUrl=http://api:8080
+    volumes:
+      - dataprotection-keys:/app/keys
+    depends_on:
+      - api
+
+  api:
+    image: ${API_IMAGE}
+    pull_policy: always
+    container_name: api
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Logging__LogLevel__Microsoft.AspNetCore.DataProtection=Error
+      - Keycloak__Authority=${KEYCLOAK_AUTHORITY}
+      - Keycloak__ClientId=${KEYCLOAK_CLIENT_ID}
+      - Keycloak__RequireHttpsMetadata=true
+
+volumes:
+  dataprotection-keys:

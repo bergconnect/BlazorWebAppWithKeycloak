@@ -6,12 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <!-- Registry en repository worden ingesteld via de CI/CD pipeline
-       (ContainerRegistry en ContainerRepository properties) zodat
-       deze waarden niet in versiebeheer hoeven te staan. -->
-  <PropertyGroup>
-    <ContainerRepository>demo-api</ContainerRepository>
-  </PropertyGroup>
+  <!-- ContainerRegistry en ContainerRepository worden ingesteld via de CI/CD pipeline
+       zodat deze waarden niet in versiebeheer hoeven te staan. -->
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.4" />

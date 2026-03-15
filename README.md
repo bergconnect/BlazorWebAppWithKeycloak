@@ -475,17 +475,26 @@ strategy:
 
 Elke job voert uit: checkout → .NET setup → GitVersion (nbgv) → `dotnet publish /t:PublishContainer`.
 
-### Benodigde GitHub Secrets
+### Benodigde GitHub Secrets en Variables
 
-Stel deze secrets in via **GitHub → Repository → Settings → Secrets and variables → Actions**:
+Stel deze in via **GitHub → Repository → Settings → Secrets and variables → Actions**.
+
+**Secrets** (versleuteld, voor gevoelige waarden):
 
 | Secret | Waarde | Toelichting |
 |--------|--------|-------------|
-| `CONTAINER_REGISTRY` | `<jouw-registry>` | Hostname van de container registry, bijv. `registry.voorbeeld.nl` |
-| `DOCKER_USER` | `<registry-gebruikersnaam>` | Gebruikersnaam voor authenticatie bij de registry |
-| `DOCKER_PASSWORD` | `<registry-wachtwoord>` | Wachtwoord of access token voor de registry |
+| `CONTAINER_REGISTRY` | `<registry-hostname>` | Hostname van de container registry |
+| `DOCKER_USER` | `<gebruikersnaam>` | Gebruikersnaam voor authenticatie bij de registry |
+| `DOCKER_PASSWORD` | `<wachtwoord>` | Wachtwoord of access token voor de registry |
 
-De `CONTAINER_REGISTRY` secret wordt doorgegeven als `-p:ContainerRegistry` aan `dotnet publish`, zodat de registry-hostname niet in de `.csproj` bestanden hoeft te staan.
+**Variables** (zichtbaar, voor niet-gevoelige waarden):
+
+| Variable | Waarde | Toelichting |
+|----------|--------|-------------|
+| `BLAZOR_REPOSITORY` | `<gebruiker>/demo` | Repository-pad voor de Blazor Web App image |
+| `API_REPOSITORY` | `<gebruiker>/demo-api` | Repository-pad voor de API image |
+
+`ContainerRegistry` en `ContainerRepository` worden via de workflow doorgegeven aan `dotnet publish` — geen van beide staan in de `.csproj` bestanden.
 
 ---
 

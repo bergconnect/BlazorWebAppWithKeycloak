@@ -9,12 +9,8 @@
     <UserSecretsId>3f654a4f-8d0b-4ca0-b3e1-bb59639348b6</UserSecretsId>
   </PropertyGroup>
 
-  <!-- Registry en repository worden ingesteld via de CI/CD pipeline
-       (ContainerRegistry en ContainerRepository properties) zodat
-       deze waarden niet in versiebeheer hoeven te staan. -->
-  <PropertyGroup>
-    <ContainerRepository>demo</ContainerRepository>
-  </PropertyGroup>
+  <!-- ContainerRegistry en ContainerRepository worden ingesteld via de CI/CD pipeline
+       zodat deze waarden niet in versiebeheer hoeven te staan. -->
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.5" />

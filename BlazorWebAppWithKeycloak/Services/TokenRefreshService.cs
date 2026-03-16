@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
-using System.Security.Claims;
 
 namespace BlazorWebAppWithKeycloak.Services;
 
@@ -78,8 +76,8 @@ public sealed class TokenRefreshService(
 
             var tokenRequest = new Dictionary<string, string>
             {
-                ["grant_type"]    = "refresh_token",
-                ["client_id"]     = options.ClientId!,
+                ["grant_type"] = "refresh_token",
+                ["client_id"] = options.ClientId!,
                 ["client_secret"] = options.ClientSecret!,
                 ["refresh_token"] = refreshToken,
             };

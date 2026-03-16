@@ -22,6 +22,7 @@ builder.Services
     .SetApplicationName("BlazorWebAppWithKeycloak");
 
 // ─── API Client ───────────────────────────────────────────────────────────────
+builder.Services.AddScoped<TokenRefreshService>();
 builder.Services.AddScoped<BearerTokenHandler>();
 
 builder.Services

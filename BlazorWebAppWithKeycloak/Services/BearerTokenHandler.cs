@@ -5,8 +5,12 @@ namespace BlazorWebAppWithKeycloak.Services;
 /// <summary>
 /// DelegatingHandler die het access token van de ingelogde gebruiker
 /// toevoegt als Authorization Bearer header aan uitgaande HTTP-verzoeken.
+/// Het token wordt automatisch ververst als het verlopen is of bijna verloopt,
+/// via <see cref="TokenRefreshService"/>.
 /// </summary>
-public sealed class BearerTokenHandler(IHttpContextAccessor httpContextAccessor)
+public sealed class BearerTokenHandler(
+    IHttpContextAccessor httpContextAccessor,
+    TokenRefreshService tokenRefreshService)
     : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
@@ -17,7 +21,9 @@ public sealed class BearerTokenHandler(IHttpContextAccessor httpContextAccessor)
 
         if (httpContext is not null)
         {
-            var accessToken = await httpContext.GetTokenAsync("access_token");
+            // Gebruik TokenRefreshService: haalt automatisch een nieuw token op
+            // als het huidige verlopen is of binnen de buffer-periode verloopt.
+            var accessToken = await tokenRefreshService.GetValidAccessTokenAsync(cancellationToken);
 
             if (!string.IsNullOrEmpty(accessToken))
             {
@@ -26,9 +32,8 @@ public sealed class BearerTokenHandler(IHttpContextAccessor httpContextAccessor)
             }
             else
             {
-                // Geen token beschikbaar: verzoek niet doorsturen zonder authenticatie.
-                // Dit voorkomt dat anonieme requests de API bereiken als
-                // de sessie is verlopen maar de HttpContext nog beschikbaar is.
+                // Geen geldig token beschikbaar: sessie is verlopen en refresh is mislukt.
+                // Geef 401 terug zodat de UI de gebruiker naar /login kan sturen.
                 return new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
             }
         }

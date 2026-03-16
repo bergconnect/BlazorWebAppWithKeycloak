@@ -51,7 +51,7 @@
                 <div class="row g-3">
 
                     @* Access token *@
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="border rounded p-3 h-100">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <span class="fw-semibold text-muted small text-uppercase">Access Token</span>
@@ -61,12 +61,26 @@
                                 <span class="text-muted small">Verloopt om</span><br />
                                 <span class="font-monospace">@(_accessTokenExpiry?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
                             </div>
-
+                            @if (_accessTokenRemainingSeconds.HasValue)
+                            {
+                                <div>
+                                    <span class="text-muted small">Resterende tijd</span><br />
+                                    <span class="@(_accessTokenRemainingSeconds < 60 ? "text-warning fw-bold" : "")">
+                                        @FormatDuration(_accessTokenRemainingSeconds.Value)
+                                    </span>
+                                </div>
+                                <div class="mt-2">
+                                    <div class="progress" style="height:6px;">
+                                        <div class="progress-bar @_accessTokenProgressClass"
+                                             style="width:@_accessTokenProgressPct.ToString("F0")%"></div>
+                                    </div>
+                                </div>
+                            }
                         </div>
                     </div>
 
                     @* Cookie / ASP.NET sessie *@
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="border rounded p-3 h-100">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <span class="fw-semibold text-muted small text-uppercase">Cookie sessie</span>
@@ -76,12 +90,26 @@
                                 <span class="text-muted small">Verloopt om</span><br />
                                 <span class="font-monospace">@(_cookieExpiry?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
                             </div>
-
+                            @if (_cookieRemainingSeconds.HasValue)
+                            {
+                                <div>
+                                    <span class="text-muted small">Resterende tijd</span><br />
+                                    <span class="@(_cookieRemainingSeconds < 300 ? "text-warning fw-bold" : "")">
+                                        @FormatDuration(_cookieRemainingSeconds.Value)
+                                    </span>
+                                </div>
+                                <div class="mt-2">
+                                    <div class="progress" style="height:6px;">
+                                        <div class="progress-bar @_cookieProgressClass"
+                                             style="width:@_cookieProgressPct.ToString("F0")%"></div>
+                                    </div>
+                                </div>
+                            }
                         </div>
                     </div>
 
                     @* Inlogmoment *@
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="border rounded p-3 h-100">
                             <div class="mb-2">
                                 <span class="fw-semibold text-muted small text-uppercase">Inlogmoment</span>
@@ -90,7 +118,35 @@
                                 <span class="text-muted small">Ingelogd om</span><br />
                                 <span class="font-monospace">@(_issuedAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
                             </div>
+                            @if (_issuedAt.HasValue)
+                            {
+                                var elapsed = DateTimeOffset.UtcNow - _issuedAt.Value;
+                                <div>
+                                    <span class="text-muted small">Sessieduur</span><br />
+                                    <span>@FormatDuration((long)elapsed.TotalSeconds)</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
 
+                    @* Refresh token *@
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <span class="fw-semibold text-muted small text-uppercase">Refresh Token</span>
+                                <span class="badge @_refreshTokenBadgeClass">@_refreshTokenStatus</span>
+                            </div>
+                            <div class="mb-1">
+                                <span class="text-muted small">Verloopt om</span><br />
+                                <span class="font-monospace">@(_refreshTokenExpiry?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
+                            </div>
+                            @if (_refreshTokenExpiry.HasValue)
+                            {
+                                <div class="mt-1">
+                                    <span class="text-muted small">Datum</span><br />
+                                    <span class="font-monospace small">@_refreshTokenExpiry.Value.ToLocalTime().ToString("dd-MM-yyyy")</span>
+                                </div>
+                            }
                         </div>
                     </div>
 
@@ -157,21 +213,40 @@
     </NotAuthorized>
 </AuthorizeView>
 
+@implements IDisposable
+@inject TokenProvider TokenProvider
+@inject TokenService TokenService
+
 @code {
     private string?         _accessToken;
     private bool            _showToken = false;
+    private Timer?          _timer;
+
     private DateTimeOffset? _accessTokenExpiry;
+    private DateTimeOffset? _refreshTokenExpiry;
     private DateTimeOffset? _cookieExpiry;
     private DateTimeOffset? _issuedAt;
 
+    private long?           _accessTokenRemainingSeconds;
+    private long?           _cookieRemainingSeconds;
+
+    private double          _accessTokenProgressPct;
+    private double          _cookieProgressPct;
+
     private string          _sessionStatus            = "Actief";
     private string          _accessTokenStatus        = "Geldig";
+    private string          _refreshTokenStatus       = "Geldig";
     private string          _cookieStatus             = "Geldig";
 
     private string          _sessionBadgeClass        = "bg-success";
     private string          _accessTokenBadgeClass    = "bg-success";
+    private string          _refreshTokenBadgeClass   = "bg-success";
     private string          _cookieBadgeClass         = "bg-success";
+    private string          _accessTokenProgressClass = "bg-success";
+    private string          _cookieProgressClass      = "bg-success";
 
+    // Moet overeenkomen met Keycloak Access Token Lifespan
+    private const double AccessTokenLifetimeSeconds = 5 * 60;
 
     protected override async Task OnInitializedAsync()
     {
@@ -184,6 +259,11 @@
         var expiresAtRaw = await httpContext.GetTokenAsync("expires_at");
         if (DateTimeOffset.TryParse(expiresAtRaw, out var expiresAt))
             _accessTokenExpiry = expiresAt;
+
+        // refresh_expires_at: opgeslagen via OnTokenResponseReceived in ConfigureKeycloakOptions
+        var refreshExpiresAtRaw = await httpContext.GetTokenAsync("refresh_expires_at");
+        if (DateTimeOffset.TryParse(refreshExpiresAtRaw, out var refreshExpiresAt))
+            _refreshTokenExpiry = refreshExpiresAt;
 
         // IssuedUtc en ExpiresUtc komen rechtstreeks uit de AuthenticationProperties
         // van de cookie — dit zijn de betrouwbaarste bronnen voor sessietijden.
@@ -198,6 +278,31 @@
 
         RecalculateStatus();
 
+        // Elke seconde hertekenen én token verversen indien verlopen.
+        // Na een refresh wordt _accessTokenExpiry bijgewerkt vanuit TokenStore.
+        _timer = new Timer(_ => InvokeAsync(async () =>
+        {
+            await SyncAccessTokenExpiryAsync();
+            RecalculateStatus();
+            StateHasChanged();
+        }), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    /// <summary>
+    /// Vraagt een geldig token op via TokenRefreshService. Als het token
+    /// ververst is, staat de nieuwe ExpiresAt in TokenStore — die waarde
+    /// wordt dan ook in _accessTokenExpiry gezet zodat de UI bijwerkt.
+    /// </summary>
+    private async Task SyncAccessTokenExpiryAsync()
+    {
+        var token = await TokenService.GetGeldigTokenAsync();
+        if (token is not null && !string.IsNullOrEmpty(TokenProvider.ExpiresAt))
+        {
+            if (DateTimeOffset.TryParse(TokenProvider.ExpiresAt, out var newExpiry))
+                _accessTokenExpiry = newExpiry;
+
+            _accessToken = token;
+        }
     }
 
     private void RecalculateStatus()
@@ -207,33 +312,64 @@
         if (_accessTokenExpiry.HasValue)
         {
             var remaining = (long)(_accessTokenExpiry.Value - now).TotalSeconds;
-            (_accessTokenStatus, _accessTokenBadgeClass) = remaining switch
+            _accessTokenRemainingSeconds = Math.Max(0, remaining);
+            _accessTokenProgressPct = Math.Clamp(
+                _accessTokenRemainingSeconds.Value / AccessTokenLifetimeSeconds * 100, 0, 100);
+
+            (_accessTokenStatus, _accessTokenBadgeClass, _accessTokenProgressClass) = remaining switch
             {
-                <= 0  => ("Verlopen",       "bg-secondary"),
-                <= 30 => ("Bijna verlopen", "bg-warning text-dark"),
-                _     => ("Geldig",         "bg-success"),
+                <= 0  => ("Verlopen",       "bg-secondary",         "bg-secondary"),
+                <= 30 => ("Bijna verlopen", "bg-warning text-dark", "bg-warning"),
+                _     => ("Geldig",         "bg-success",           "bg-success"),
             };
         }
 
         if (_cookieExpiry.HasValue && _issuedAt.HasValue)
         {
             var remaining        = (long)(_cookieExpiry.Value - now).TotalSeconds;
-            (_cookieStatus, _cookieBadgeClass) = remaining switch
+            var totalLifetime    = (_cookieExpiry.Value - _issuedAt.Value).TotalSeconds;
+            _cookieRemainingSeconds = Math.Max(0, remaining);
+            _cookieProgressPct = totalLifetime > 0
+                ? Math.Clamp(_cookieRemainingSeconds.Value / totalLifetime * 100, 0, 100)
+                : 0;
+
+            (_cookieStatus, _cookieBadgeClass, _cookieProgressClass) = remaining switch
             {
-                <= 0   => ("Verlopen",       "bg-secondary"),
-                <= 300 => ("Bijna verlopen", "bg-warning text-dark"),
-                _      => ("Geldig",         "bg-success"),
+                <= 0   => ("Verlopen",       "bg-secondary",         "bg-secondary"),
+                <= 300 => ("Bijna verlopen", "bg-warning text-dark", "bg-warning"),
+                _      => ("Geldig",         "bg-success",           "bg-success"),
+            };
+        }
+
+        if (_refreshTokenExpiry.HasValue)
+        {
+            var remaining = (long)(_refreshTokenExpiry.Value - now).TotalSeconds;
+            (_refreshTokenStatus, _refreshTokenBadgeClass) = remaining switch
+            {
+                <= 0    => ("Verlopen",       "bg-secondary"),
+                <= 3600 => ("Bijna verlopen", "bg-warning text-dark"),
+                _       => ("Geldig",         "bg-success"),
             };
         }
 
         (_sessionStatus, _sessionBadgeClass) =
-            (_cookieStatus == "Verlopen" || _accessTokenStatus == "Verlopen")
+            (_cookieStatus == "Verlopen" || _accessTokenStatus == "Verlopen" || _refreshTokenStatus == "Verlopen")
                 ? ("Verlopen",       "bg-secondary")
-            : (_cookieStatus == "Bijna verlopen" || _accessTokenStatus == "Bijna verlopen")
+            : (_cookieStatus == "Bijna verlopen" || _accessTokenStatus == "Bijna verlopen" || _refreshTokenStatus == "Bijna verlopen")
                 ? ("Bijna verlopen", "bg-warning text-dark")
                 : ("Actief",         "bg-success");
     }
 
+    private static string FormatDuration(long totalSeconds)
+    {
+        if (totalSeconds <= 0) return "0s";
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        if (ts.TotalSeconds < 60) return $"{ts.Seconds}s";
+        if (ts.TotalHours   < 1)  return $"{ts.Minutes}m {ts.Seconds}s";
+        return $"{(int)ts.TotalHours}u {ts.Minutes}m {ts.Seconds}s";
+    }
+
     private void ToggleToken() => _showToken = !_showToken;
 
+    public void Dispose() => _timer?.Dispose();
 }

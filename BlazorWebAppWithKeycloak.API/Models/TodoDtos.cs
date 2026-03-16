@@ -1,4 +1,3 @@
-using BlazorWebAppWithKeycloak.API.Models;
 using System.ComponentModel.DataAnnotations;
 
 namespace BlazorWebAppWithKeycloak.API.Models;

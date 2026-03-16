@@ -1,6 +1,7 @@
 @page "/todos"
 @rendermode InteractiveServer
 @inject TodoApiClient ApiClient
+@inject NavigationManager Navigation
 
 <PageTitle>Mijn Todo's</PageTitle>
 
@@ -284,7 +285,8 @@
         }
         catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401)
         {
-            _fout = "Sessie verlopen — log opnieuw in.";
+            var returnUrl = Uri.EscapeDataString("/todos");
+            Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: true);
         }
         catch (Exception ex)
         {

@@ -1,43 +1,48 @@
-using Microsoft.AspNetCore.Authentication;
-
 namespace BlazorWebAppWithKeycloak.Services;
 
 /// <summary>
-/// DelegatingHandler die het access token van de ingelogde gebruiker
-/// toevoegt als Authorization Bearer header aan uitgaande HTTP-verzoeken.
-/// Het token wordt automatisch ververst als het verlopen is of bijna verloopt,
-/// via <see cref="TokenRefreshService"/>.
+/// DelegatingHandler die bij elke uitgaande HTTP-request:
+/// <list type="number">
+///   <item>Tokens laadt vanuit HttpContext als die beschikbaar is (pre-render fase)</item>
+///   <item>Het access token valideert en vernieuwt via TokenService indien nodig</item>
+///   <item>Het geldige token als Authorization Bearer header toevoegt</item>
+/// </list>
 /// </summary>
 public sealed class BearerTokenHandler(
-    IHttpContextAccessor httpContextAccessor,
-    TokenRefreshService tokenRefreshService)
+    IHttpContextAccessor        httpContextAccessor,
+    TokenProvider               tokenProvider,
+    TokenService                tokenService,
+    ILogger<BearerTokenHandler> logger)
     : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
-        CancellationToken cancellationToken)
+        CancellationToken  cancellationToken)
     {
+        // Stap 1 — tokens laden vanuit HttpContext (alleen beschikbaar in pre-render fase)
+        // IsGeladen is false zolang er nog geen tokens zijn — ook na een eerdere
+        // mislukte poging waarbij HttpContext null was.
         var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext is not null && !tokenProvider.IsGeladen)
+            await tokenProvider.LaadVanuitHttpContextAsync(httpContext);
 
-        if (httpContext is not null)
+        // Stap 2 — geldig token ophalen; vernieuwt automatisch indien verlopen
+        var accessToken = await tokenService.GetGeldigTokenAsync(cancellationToken);
+
+        if (!string.IsNullOrEmpty(accessToken))
         {
-            // Gebruik TokenRefreshService: haalt automatisch een nieuw token op
-            // als het huidige verlopen is of binnen de buffer-periode verloopt.
-            var accessToken = await tokenRefreshService.GetValidAccessTokenAsync(cancellationToken);
+            request.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 
-            if (!string.IsNullOrEmpty(accessToken))
-            {
-                request.Headers.Authorization =
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            }
-            else
-            {
-                // Geen geldig token beschikbaar: sessie is verlopen en refresh is mislukt.
-                // Geef 401 terug zodat de UI de gebruiker naar /login kan sturen.
-                return new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
-            }
+            return await base.SendAsync(request, cancellationToken);
         }
 
-        return await base.SendAsync(request, cancellationToken);
+        // Tokens nog niet geladen (circuit-fase vóór eerste pre-render)
+        // of sessie verlopen — geef 401 terug zodat de UI dit kan afhandelen
+        logger.LogWarning(
+            "Geen geldig access token voor {Method} {Uri}. IsGeladen={IsGeladen}.",
+            request.Method, request.RequestUri, tokenProvider.IsGeladen);
+
+        return new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
     }
 }

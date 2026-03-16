@@ -1,6 +1,7 @@
 @page "/hello-world"
 @rendermode InteractiveServer
 @inject HelloWorldApiClient ApiClient
+@inject NavigationManager Navigation
 
 <PageTitle>Hello World API</PageTitle>
 
@@ -68,7 +69,8 @@
         }
         catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401)
         {
-            _fout = "Niet geautoriseerd — uw sessie is mogelijk verlopen.";
+            var returnUrl = Uri.EscapeDataString("/hello-world");
+            Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: true);
         }
         catch (HttpRequestException ex) when ((int?)ex.StatusCode == 403)
         {

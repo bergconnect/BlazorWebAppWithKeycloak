@@ -31,11 +31,9 @@ Deze README beschrijft de implementatie van Keycloak OIDC-authenticatie in de Bl
   - [HelloWorld.razor](#helloworldrazor)
   - [Admin.razor](#adminrazor)
 - [Services](#services)
-  - [TokenRefreshService](#tokenrefreshservice)
   - [BearerTokenHandler](#bearertokenhandler)
   - [HelloWorldApiClient](#helloworldapiclient)
   - [WeatherForecast](#weatherforecast)
-- [Sessiebeheer](#sessiebeheer)
 - [Docker](#docker)
 - [CI/CD](#cicd)
 - [Stroom](#stroom)
@@ -77,8 +75,7 @@ solution/
 │   │   ├── RedirectToNotLoggedIn.razor   # Navigeert naar /niet-aangemeld
 │   │   └── Routes.razor                  # AuthorizeRouteView
 │   ├── Services/
-│   │   ├── TokenRefreshService.cs        # Automatisch access token verversen
-│   │   ├── BearerTokenHandler.cs         # Voegt geldig Bearer token toe aan HttpClient
+│   │   ├── BearerTokenHandler.cs         # Voegt Bearer token toe aan HttpClient
 │   │   ├── HelloWorldApiClient.cs        # Typed HttpClient voor de API
 │   │   └── WeatherForecast.cs            # Record model voor weersdata
 │   ├── appsettings.json
@@ -203,7 +200,7 @@ Implementeert `IConfigureNamedOptions<OpenIdConnectOptions>`.
 | Instelling                      | Waarde / Toelichting                                                                |
 |---------------------------------|-------------------------------------------------------------------------------------|
 | `ResponseType`                  | `code` — Authorization Code Flow                                                    |
-| `SaveTokens`                    | `true` — tokens beschikbaar via `GetTokenAsync` voor API-aanroepen en token refresh |
+| `SaveTokens`                    | `true` — tokens beschikbaar via `GetTokenAsync` voor API-aanroepen                  |
 | `GetClaimsFromUserInfoEndpoint` | `true` — profiel- en emailclaims worden opgehaald                                   |
 | Scopes                          | `openid`, `profile`, `email`                                                        |
 | `MetadataAddress`               | Interne Docker URL; alleen ingesteld als `KeycloakOptions.MetadataAddress` gevuld is|
@@ -220,12 +217,9 @@ Implementeert `IConfigureNamedOptions<OpenIdConnectOptions>`.
 Bundelt alle registraties in `builder.Services.AddKeycloakAuthentication()`.
 
 - Cookie: `HttpOnly = true`, `SameSite = Lax`, `SecurePolicy = None`
-- `ExpireTimeSpan = 8 uur` met `SlidingExpiration = true` — sessie verlengt bij activiteit
 - Correlation- en nonce-cookies: `SameSite = Unspecified`, `SecurePolicy = None`
 
 > **SameSite = Unspecified:** Keycloak draait op een ander IP dan de Blazor-app. Met `Lax` blokkeert de browser de correlation cookie bij de terugkeer van Keycloak. `Unspecified` stuurt geen `SameSite`-attribuut, waardoor de cookie altijd wordt doorgestuurd.
-
-> **Afstemming met Keycloak:** `ExpireTimeSpan` moet gelijk zijn aan of korter dan de `SSO Session Idle` instelling in Keycloak. Zie [Sessiebeheer](#sessiebeheer) voor de volledige aanbevolen configuratie.
 
 ---
 
@@ -348,35 +342,11 @@ Niet-admins zien een waarschuwingsmelding. De **Admin API** link in het navigati
 
 ## Services
 
-### TokenRefreshService
-
-`Services/TokenRefreshService.cs`
-
-Beheert de levenscyclus van access tokens. Wordt aangeroepen door `BearerTokenHandler` vóór elke uitgaande API-request.
-
-**Werking:**
-
-1. Controleert of het opgeslagen `access_token` verlopen is of binnen 30 seconden verloopt (de buffer voorkomt race conditions bij gelijktijdige requests)
-2. Als het token nog geldig is, wordt het direct teruggegeven
-3. Als het token verlopen is, vraagt de service een nieuw token op bij Keycloak via het `refresh_token`
-4. Het nieuwe token wordt teruggeschreven naar de authenticatiecookie zodat alle volgende requests er gebruik van maken
-
-**Methoden:**
-
-| Methode | Retourwaarde | Toelichting |
-|---------|-------------|-------------|
-| `GetValidAccessTokenAsync()` | `string?` | Geeft een geldig access token terug; vernieuwt automatisch indien nodig |
-| `HasValidRefreshTokenAsync()` | `bool` | Controleert of een refresh token beschikbaar is — nuttig voor UI-logica |
-
-> **Geregistreerd als `Scoped`** in `Program.cs`, consistent met `BearerTokenHandler`.
-
----
-
 ### BearerTokenHandler
 
 `Services/BearerTokenHandler.cs`
 
-`DelegatingHandler` die als pipeline-middleware op de `HttpClient` zit. Vraagt via `TokenRefreshService` een geldig access token op en voegt dit toe als `Authorization: Bearer` header. Bij een ontbrekend of niet-vernieuwbaar token (verlopen Keycloak-sessie) geeft de handler `401 Unauthorized` terug zodat de UI de gebruiker naar `/login` kan sturen.
+`DelegatingHandler` die als pipeline-middleware op de `HttpClient` zit. Pakt het `access_token` uit de sessiecookie en voegt het toe als `Authorization: Bearer` header.
 
 ### HelloWorldApiClient
 
@@ -392,9 +362,6 @@ Typed `HttpClient` voor de API. Endpoint paden staan als `private const`. Biedt 
 Geregistreerd in `Program.cs` met `BearerTokenHandler`:
 
 ```csharp
-builder.Services.AddScoped<TokenRefreshService>();
-builder.Services.AddScoped<BearerTokenHandler>();
-
 builder.Services
     .AddHttpClient<HelloWorldApiClient>(client =>
     {
@@ -412,88 +379,29 @@ Immutable `record` model. Staat in een apart bestand in plaats van als private n
 
 ---
 
-## Sessiebeheer
-
-De sessieduur wordt bepaald door drie lagen die op elkaar afgestemd moeten zijn.
-
-### Aanbevolen configuratie (zakelijke app / werkdag)
-
-**Keycloak — Realm Settings → Sessions en Tokens:**
-
-| Instelling | Aanbevolen waarde | Toelichting |
-|---|---|---|
-| SSO Session Idle | `8u` | Keycloak-sessie verloopt bij inactiviteit |
-| SSO Session Max | `10u` | Harde grens, ongeacht activiteit |
-| Access Token Lifespan | `5m` | Kort voor veiligheid — `TokenRefreshService` vernieuwt transparant |
-| Refresh Token Lifespan | *(erft van SSO Session Idle)* | Automatisch gelijk aan idle timeout |
-
-**ASP.NET Core — `AuthServiceExtensions.cs`:**
-
-```csharp
-options.ExpireTimeSpan    = TimeSpan.FromHours(8);  // Gelijk aan SSO Session Idle
-options.SlidingExpiration = true;                    // Verlengt bij activiteit
-```
-
-### Hoe de drie lagen samenwerken
-
-```
-Gebruiker doet een API-request
-         │
-         ▼
-BearerTokenHandler → TokenRefreshService.GetValidAccessTokenAsync()
-         │
-         ├─ Token nog geldig (expires_at > nu + 30s) → direct doorzetten
-         │
-         └─ Token verlopen of bijna verlopen
-                  │
-                  ▼
-         Refresh token aanwezig?
-                  │
-                  ├─ Ja → POST /token met grant_type=refresh_token
-                  │         │
-                  │         ├─ Keycloak SSO Session nog actief → nieuw access token
-                  │         │   Cookie bijgewerkt → request doorgezet
-                  │         │
-                  │         └─ Keycloak SSO Session verlopen → 401 terug
-                  │             UI stuurt gebruiker naar /login
-                  │
-                  └─ Nee → 401 terug → UI stuurt gebruiker naar /login
-```
-
-### Sessieverloop afhandelen in de UI
-
-Als de Keycloak-sessie verlopen is, geeft `BearerTokenHandler` een `401` terug. Vang dit op in Razor components:
-
-```csharp
-var result = await ApiClient.GetWeatherAsync();
-if (result.StatusCode == HttpStatusCode.Unauthorized)
-{
-    Navigation.NavigateTo("/login?returnUrl=/weather", forceLoad: true);
-}
-```
-
-### Kortere sessies (gevoelige toepassingen)
-
-Voor financiële, medische of anderszins gevoelige applicaties gelden strengere richtlijnen (o.a. NEN 7510, ISO 27001):
-
-| Instelling | Waarde |
-|---|---|
-| SSO Session Idle | `15–30m` |
-| SSO Session Max | `4–8u` |
-| Access Token Lifespan | `5m` |
-| `ExpireTimeSpan` (cookie) | Gelijk aan SSO Session Idle |
-| `SlidingExpiration` | `false` — sessie verlengt niet bij activiteit |
-
----
-
 ## Docker
 
 ### Services
 
-| Service    | Image                                         | Poort          |
-|------------|-----------------------------------------------|----------------|
-| `blazor` | `${BLAZOR_IMAGE}` (via `.env`)  | `5000 → 8080`  |
-| `api`    | `${API_IMAGE}` (via `.env`)     | `5001 → 8080`  |
+| Service    | Image                          | Poort         |
+|------------|--------------------------------|---------------|
+| `blazor` | `${BLAZOR_IMAGE}` (via `.env`) | `5000 → 8080` |
+| `api`    | `${API_IMAGE}` (via `.env`)    | `5001 → 8080` |
+
+### Volumes
+
+| Volume               | Gemount in       | Inhoud                                        |
+|----------------------|------------------|-----------------------------------------------|
+| `dataprotection-keys` | `/app/keys`     | ASP.NET Core Data Protection sleutels (Blazor) |
+| `todo-data`          | `/app/data`      | SQLite database `todo.db` (API)               |
+
+De database-locatie wordt via de omgevingsvariabele `ConnectionStrings__TodoDb` doorgegeven aan de API container, zodat `appsettings.json` niet gewijzigd hoeft te worden per omgeving:
+
+```yaml
+- ConnectionStrings__TodoDb=Data Source=/app/data/todo.db
+```
+
+> **Belangrijk:** verwijder het `todo-data` volume niet met `docker compose down -v` tenzij je de todolijsten van alle gebruikers wilt wissen. Gebruik `docker compose down` (zonder `-v`) om alleen de containers te stoppen.
 
 ### URL-configuratie per service
 
@@ -512,6 +420,7 @@ De app draait achter een reverse proxy op `https://<app-domein>`. Keycloak is ge
 - Keycloak__Authority=${KEYCLOAK_AUTHORITY}
 - Keycloak__ClientId=${KEYCLOAK_CLIENT_ID}
 - Keycloak__RequireHttpsMetadata=true
+- ConnectionStrings__TodoDb=Data Source=/app/data/todo.db
 ```
 
 ### `.env` bestand
@@ -535,6 +444,8 @@ docker compose up -d
 docker compose logs -f blazor
 docker compose logs -f api
 ```
+
+> Gebruik `docker compose down` om containers te stoppen — de volumes (`dataprotection-keys` en `todo-data`) blijven dan behouden. Gebruik `docker compose down -v` **alleen** als je ook alle data wilt wissen.
 
 ---
 
@@ -567,7 +478,7 @@ Lokaal (Development) worden forwarded headers niet verwerkt zodat `http://localh
 
 ## CI/CD
 
-Één workflow met matrix strategy bouwt beide projecten:
+Eén workflow met matrix strategy bouwt beide projecten:
 
 ```yaml
 # .github/workflows/build-images.yml
@@ -622,10 +533,7 @@ Gebruiker logt in → /signin-oidc?code=...
 OIDC-middleware wisselt code in voor tokens (backchannel)
         │
         ▼
-Cookie aangemaakt (access_token, refresh_token, expires_at opgeslagen)
-        │
-        ▼
-Redirect naar returnUrl
+Cookie aangemaakt → redirect naar returnUrl
 ```
 
 ### Niet-ingelogde gebruiker bezoekt beveiligde pagina
@@ -643,25 +551,23 @@ AuthorizeView: niet ingelogd
 Gebruiker klikt Inloggen → na login terug naar originele pagina
 ```
 
-### API aanroepen vanuit Blazor (met token refresh)
+### API aanroepen vanuit Blazor
 
 ```
 HelloWorld.razor → HelloWorldApiClient.GetHelloAsync()
+       of
+Admin.razor → HelloWorldApiClient.GetAdminAsync()
         │
         ▼
-BearerTokenHandler → TokenRefreshService.GetValidAccessTokenAsync()
+BearerTokenHandler pakt access_token uit sessiecookie
         │
-        ├─ Token geldig → direct Bearer header toevoegen
-        │
-        └─ Token verlopen → refresh via Keycloak → nieuw token in cookie
-                │
-                ▼
+        ▼
 GET /api/hello met Authorization: Bearer <token>
-                │
-                ▼
+        │
+        ▼
 API valideert token (issuer, audience, handtekening, rol "user")
-                │
-                ▼
+        │
+        ▼
 { "message": "Hallo, lvdberg!", "timestamp": "..." }
 ```
 

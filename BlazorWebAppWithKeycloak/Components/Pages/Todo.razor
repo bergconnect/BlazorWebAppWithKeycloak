@@ -1,0 +1,456 @@
+@page "/todos"
+@rendermode InteractiveServer
+@inject TodoApiClient ApiClient
+
+<PageTitle>Mijn Todo's</PageTitle>
+
+<h1>Mijn Todo's</h1>
+<p class="lead">Persoonlijke takenlijst — alleen jouw items zijn zichtbaar.</p>
+
+<AuthorizeView>
+    <Authorized>
+
+        @* ── Foutmelding ──────────────────────────────────────────────────────── *@
+        @if (_fout is not null)
+        {
+            <div class="alert alert-danger alert-dismissible" role="alert">
+                <strong>Fout:</strong> @_fout
+                <button type="button" class="btn-close" @onclick="() => _fout = null"></button>
+            </div>
+        }
+
+        @* ── Toolbar: filter + nieuw item knop ────────────────────────────────── *@
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <div class="btn-group" role="group" aria-label="Filter">
+                <button class="btn @(_filter == Filter.Alle ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="() => ZetFilter(Filter.Alle)">
+                    Alle <span class="badge bg-secondary ms-1">@_items.Count</span>
+                </button>
+                <button class="btn @(_filter == Filter.Open ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="() => ZetFilter(Filter.Open)">
+                    Open <span class="badge bg-secondary ms-1">@_items.Count(i => !i.Afgerond)</span>
+                </button>
+                <button class="btn @(_filter == Filter.Afgerond ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="() => ZetFilter(Filter.Afgerond)">
+                    Afgerond <span class="badge bg-secondary ms-1">@_items.Count(i => i.Afgerond)</span>
+                </button>
+            </div>
+
+            <button class="btn btn-success ms-auto" @onclick="OpenNieuwFormulier">
+                <span class="oi oi-plus me-1" aria-hidden="true"></span> Nieuw item
+            </button>
+        </div>
+
+        @* ── Nieuw / bewerk formulier ──────────────────────────────────────────── *@
+        @if (_toonFormulier)
+        {
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <strong>@(_bewerkId.HasValue ? "Item bewerken" : "Nieuw item")</strong>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">
+                                Titel <span class="text-danger">*</span>
+                            </label>
+                            <input class="form-control @(_titelFout ? "is-invalid" : "")"
+                                   placeholder="Wat moet er gedaan worden?"
+                                   @bind="_formulierTitel"
+                                   @bind:event="oninput"
+                                   @onkeydown="FormulierKeyDown" />
+                            @if (_titelFout)
+                            {
+                                <div class="invalid-feedback">Titel is verplicht.</div>
+                            }
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Omschrijving</label>
+                            <textarea class="form-control" rows="2"
+                                      placeholder="Optionele toelichting…"
+                                      @bind="_formulierOmschrijving"></textarea>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Prioriteit</label>
+                            <select class="form-select" @bind="_formulierPrioriteit">
+                                <option value="@Priority.Laag">🟢 Laag</option>
+                                <option value="@Priority.Normaal">🟡 Normaal</option>
+                                <option value="@Priority.Hoog">🔴 Hoog</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vervaldatum</label>
+                            <input type="date" class="form-control"
+                                   @bind="_formulierVervaldatum" />
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="OpslaanAsync" disabled="@_bezig">
+                        @if (_bezig)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        @(_bewerkId.HasValue ? "Opslaan" : "Aanmaken")
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="SluitFormulier">
+                        Annuleren
+                    </button>
+                </div>
+            </div>
+        }
+
+        @* ── Lijst ─────────────────────────────────────────────────────────────── *@
+        @if (_laadt)
+        {
+            <div class="d-flex align-items-center gap-2 text-muted py-4">
+                <span class="spinner-border spinner-border-sm" role="status"></span>
+                Laden…
+            </div>
+        }
+        else if (!GefilterdItems.Any())
+        {
+            <div class="text-center text-muted py-5">
+                <div style="font-size:2.5rem">✅</div>
+                <p class="mt-2">
+                    @if (_filter == Filter.Afgerond)
+                    {
+                        <span>Nog geen afgeronde items.</span>
+                    }
+                    else
+                    {
+                        <span>Geen openstaande items — voeg een nieuw item toe!</span>
+                    }
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="list-group">
+                @foreach (var item in GefilterdItems)
+                {
+                    <div class="list-group-item list-group-item-action p-3
+                                @(item.Afgerond ? "opacity-75" : "")
+                                @(IsVervallen(item) ? "border-danger" : "")">
+                        <div class="d-flex align-items-start gap-3">
+
+                            @* Checkbox *@
+                            <div class="pt-1">
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       style="width:1.2em;height:1.2em;cursor:pointer"
+                                       checked="@item.Afgerond"
+                                       @onchange="() => ToggleAfgerondAsync(item)"
+                                       title="@(item.Afgerond ? "Markeer als open" : "Markeer als afgerond")" />
+                            </div>
+
+                            @* Inhoud *@
+                            <div class="flex-grow-1 min-width-0">
+                                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                    <span class="fw-semibold @(item.Afgerond ? "text-decoration-line-through text-muted" : "")">
+                                        @item.Titel
+                                    </span>
+                                    <span class="badge @PrioriteitBadge(item.Prioriteit)">
+                                        @PrioriteitLabel(item.Prioriteit)
+                                    </span>
+                                    @if (item.Vervaldatum.HasValue)
+                                    {
+                                        <span class="badge @(IsVervallen(item) ? "bg-danger" : "bg-light text-dark border")">
+                                            📅 @item.Vervaldatum.Value.ToString("dd-MM-yyyy")
+                                            @if (IsVervallen(item))
+                                            {
+                                                <span> — verlopen</span>
+                                            }
+                                        </span>
+                                    }
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(item.Omschrijving))
+                                {
+                                    <div class="text-muted small">@item.Omschrijving</div>
+                                }
+
+                                <div class="text-muted small mt-1">
+                                    Aangemaakt @item.AangemaaktOp.ToLocalTime().ToString("dd-MM-yyyy HH:mm")
+                                    @if (item.GewijzigdOp != item.AangemaaktOp)
+                                    {
+                                        <span> · Gewijzigd @item.GewijzigdOp.ToLocalTime().ToString("dd-MM-yyyy HH:mm")</span>
+                                    }
+                                </div>
+                            </div>
+
+                            @* Acties *@
+                            <div class="d-flex gap-1 flex-shrink-0">
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        title="Bewerken"
+                                        @onclick="() => OpenBewerkFormulier(item)">
+                                    <span class="oi oi-pencil" aria-hidden="true"></span>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        title="Verwijderen"
+                                        @onclick="() => VerwijderenBevestigen(item)">
+                                    <span class="oi oi-trash" aria-hidden="true"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @* ── Verwijder bevestiging ─────────────────────────────────────────────── *@
+        @if (_verwijderItem is not null)
+        {
+            <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Item verwijderen</h5>
+                        </div>
+                        <div class="modal-body">
+                            Weet je zeker dat je <strong>@_verwijderItem.Titel</strong> wilt verwijderen?
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-danger" @onclick="VerwijderenBevestigdAsync"
+                                    disabled="@_bezig">
+                                @if (_bezig)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                }
+                                Verwijderen
+                            </button>
+                            <button class="btn btn-outline-secondary"
+                                    @onclick="() => _verwijderItem = null">
+                                Annuleren
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+    </Authorized>
+    <NotAuthorized>
+        <RedirectToNotLoggedIn />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    // ── State ──────────────────────────────────────────────────────────────────
+    private List<TodoResponse> _items     = [];
+    private string?            _fout;
+    private bool               _laadt    = true;
+    private bool               _bezig;
+
+    // Formulier
+    private bool      _toonFormulier     = false;
+    private int?      _bewerkId;
+    private string    _formulierTitel      = "";
+    private string    _formulierOmschrijving = "";
+    private Priority  _formulierPrioriteit  = Priority.Normaal;
+    private DateTime? _formulierVervaldatum;
+    private bool      _titelFout;
+
+    // Filter
+    private Filter _filter = Filter.Open;
+
+    // Verwijder bevestiging
+    private TodoResponse? _verwijderItem;
+
+    private enum Filter { Alle, Open, Afgerond }
+
+    private IEnumerable<TodoResponse> GefilterdItems => _filter switch
+    {
+        Filter.Open     => _items.Where(i => !i.Afgerond),
+        Filter.Afgerond => _items.Where(i =>  i.Afgerond),
+        _               => _items
+    };
+
+    // ── Lifecycle ──────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+        => await LaadItemsAsync();
+
+    // ── Data laden ─────────────────────────────────────────────────────────────
+    private async Task LaadItemsAsync()
+    {
+        _laadt = true;
+        _fout  = null;
+        try
+        {
+            _items = await ApiClient.GetAlleAsync() ?? [];
+        }
+        catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401)
+        {
+            _fout = "Sessie verlopen — log opnieuw in.";
+        }
+        catch (Exception ex)
+        {
+            _fout = $"API niet bereikbaar: {ex.Message}";
+        }
+        finally
+        {
+            _laadt = false;
+        }
+    }
+
+    // ── Formulier ──────────────────────────────────────────────────────────────
+    private void OpenNieuwFormulier()
+    {
+        _bewerkId                = null;
+        _formulierTitel          = "";
+        _formulierOmschrijving   = "";
+        _formulierPrioriteit     = Priority.Normaal;
+        _formulierVervaldatum    = null;
+        _titelFout               = false;
+        _toonFormulier           = true;
+    }
+
+    private void OpenBewerkFormulier(TodoResponse item)
+    {
+        _bewerkId                = item.Id;
+        _formulierTitel          = item.Titel;
+        _formulierOmschrijving   = item.Omschrijving ?? "";
+        _formulierPrioriteit     = item.Prioriteit;
+        _formulierVervaldatum    = item.Vervaldatum.HasValue
+            ? item.Vervaldatum.Value.ToDateTime(TimeOnly.MinValue)
+            : null;
+        _titelFout               = false;
+        _toonFormulier           = true;
+    }
+
+    private void SluitFormulier()
+    {
+        _toonFormulier = false;
+        _titelFout     = false;
+    }
+
+    private async Task FormulierKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await OpslaanAsync();
+        if (e.Key == "Escape") SluitFormulier();
+    }
+
+    private async Task OpslaanAsync()
+    {
+        _titelFout = string.IsNullOrWhiteSpace(_formulierTitel);
+        if (_titelFout) return;
+
+        _bezig = true;
+        _fout  = null;
+        try
+        {
+            var vervaldatum = _formulierVervaldatum.HasValue
+                ? DateOnly.FromDateTime(_formulierVervaldatum.Value)
+                : (DateOnly?)null;
+
+            if (_bewerkId.HasValue)
+            {
+                var bijgewerkt = await ApiClient.BijwerkenAsync(
+                    _bewerkId.Value,
+                    new TodoBijwerkenRequest(
+                        _formulierTitel.Trim(),
+                        string.IsNullOrWhiteSpace(_formulierOmschrijving) ? null : _formulierOmschrijving.Trim(),
+                        null,
+                        _formulierPrioriteit,
+                        vervaldatum));
+
+                if (bijgewerkt is not null)
+                {
+                    var idx = _items.FindIndex(i => i.Id == _bewerkId.Value);
+                    if (idx >= 0) _items[idx] = bijgewerkt;
+                }
+            }
+            else
+            {
+                var nieuw = await ApiClient.AanmakenAsync(
+                    new TodoAanmakenRequest(
+                        _formulierTitel.Trim(),
+                        string.IsNullOrWhiteSpace(_formulierOmschrijving) ? null : _formulierOmschrijving.Trim(),
+                        _formulierPrioriteit,
+                        vervaldatum));
+
+                if (nieuw is not null) _items.Insert(0, nieuw);
+            }
+
+            SluitFormulier();
+        }
+        catch (Exception ex)
+        {
+            _fout = $"Opslaan mislukt: {ex.Message}";
+        }
+        finally
+        {
+            _bezig = false;
+        }
+    }
+
+    // ── Toggle afgerond ────────────────────────────────────────────────────────
+    private async Task ToggleAfgerondAsync(TodoResponse item)
+    {
+        try
+        {
+            var bijgewerkt = await ApiClient.ToggleAfgerondAsync(item.Id);
+            if (bijgewerkt is not null)
+            {
+                var idx = _items.FindIndex(i => i.Id == item.Id);
+                if (idx >= 0) _items[idx] = bijgewerkt;
+            }
+        }
+        catch (Exception ex)
+        {
+            _fout = $"Bijwerken mislukt: {ex.Message}";
+        }
+    }
+
+    // ── Verwijderen ────────────────────────────────────────────────────────────
+    private void VerwijderenBevestigen(TodoResponse item)
+        => _verwijderItem = item;
+
+    private async Task VerwijderenBevestigdAsync()
+    {
+        if (_verwijderItem is null) return;
+        _bezig = true;
+        try
+        {
+            await ApiClient.VerwijderenAsync(_verwijderItem.Id);
+            _items.RemoveAll(i => i.Id == _verwijderItem.Id);
+            _verwijderItem = null;
+        }
+        catch (Exception ex)
+        {
+            _fout = $"Verwijderen mislukt: {ex.Message}";
+        }
+        finally
+        {
+            _bezig = false;
+        }
+    }
+
+    // ── Filter ──────────────────────────────────────────────────────────────────
+    private void ZetFilter(Filter filter) => _filter = filter;
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    private static bool IsVervallen(TodoResponse item)
+        => !item.Afgerond
+           && item.Vervaldatum.HasValue
+           && item.Vervaldatum.Value < DateOnly.FromDateTime(DateTime.Today);
+
+    private static string PrioriteitBadge(Priority p) => p switch
+    {
+        Priority.Hoog   => "bg-danger",
+        Priority.Normaal => "bg-warning text-dark",
+        Priority.Laag   => "bg-success",
+        _               => "bg-secondary"
+    };
+
+    private static string PrioriteitLabel(Priority p) => p switch
+    {
+        Priority.Hoog    => "🔴 Hoog",
+        Priority.Normaal => "🟡 Normaal",
+        Priority.Laag    => "🟢 Laag",
+        _                => p.ToString()
+    };
+}

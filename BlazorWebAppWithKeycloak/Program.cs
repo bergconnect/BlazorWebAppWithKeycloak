@@ -34,6 +34,15 @@ builder.Services
     })
     .AddHttpMessageHandler<BearerTokenHandler>();
 
+builder.Services
+    .AddHttpClient<TodoApiClient>(client =>
+    {
+        var apiBaseUrl = builder.Configuration["ApiSettings:BaseUrl"]
+            ?? "http://localhost:5001";
+        client.BaseAddress = new Uri(apiBaseUrl);
+    })
+    .AddHttpMessageHandler<BearerTokenHandler>();
+
 // ─── Forwarded Headers (alleen productie) ────────────────────────────────────
 // Verwerk X-Forwarded-Proto van de reverse proxy zodat ASP.NET Core
 // https://<app-domein> als basis-URL gebruikt voor redirect URIs.

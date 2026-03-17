@@ -1,0 +1,215 @@
+@page "/profiel"
+
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>Mijn Profiel</PageTitle>
+
+<h1>Mijn Profiel</h1>
+<p class="lead">Inloggegevens en claims ontvangen van Keycloak.</p>
+
+<AuthorizeView>
+    <Authorized>
+
+        @* ── Gebruikerskaart ──────────────────────────────────────────────────── *@
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <strong>Ingelogde gebruiker</strong>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Gebruikersnaam</dt>
+                            <dd class="col-sm-8">@context.User.Identity?.Name</dd>
+
+                            <dt class="col-sm-4">Volledige naam</dt>
+                            <dd class="col-sm-8">@(_volledigeNaam ?? "—")</dd>
+
+                            <dt class="col-sm-4">E-mailadres</dt>
+                            <dd class="col-sm-8">@(_email ?? "—")</dd>
+
+                            <dt class="col-sm-4">Rollen</dt>
+                            <dd class="col-sm-8">
+                                @if (_rollen.Any())
+                                {
+                                    @foreach (var rol in _rollen)
+                                    {
+                                        <span class="badge bg-primary me-1">@rol</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Geen rollen</span>
+                                }
+                            </dd>
+
+                            <dt class="col-sm-4">Geverifieerd</dt>
+                            <dd class="col-sm-8">
+                                @if (context.User.Identity?.IsAuthenticated == true)
+                                {
+                                    <span class="badge bg-success">Ja</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Nee</span>
+                                }
+                            </dd>
+
+                            <dt class="col-sm-4">Auth type</dt>
+                            <dd class="col-sm-8 text-muted small">@context.User.Identity?.AuthenticationType</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            @* ── Sessietijden ──────────────────────────────────────────────────── *@
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <strong>Sessie</strong>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Ingelogd om</dt>
+                            <dd class="col-sm-7 font-monospace">@(_issuedAt?.ToLocalTime().ToString("dd-MM-yyyy HH:mm:ss") ?? "—")</dd>
+
+                            <dt class="col-sm-5">Cookie verloopt om</dt>
+                            <dd class="col-sm-7 font-monospace">@(_cookieExpiry?.ToLocalTime().ToString("dd-MM-yyyy HH:mm:ss") ?? "—")</dd>
+
+                            <dt class="col-sm-5">Access token verloopt</dt>
+                            <dd class="col-sm-7 font-monospace">
+                                @if (_accessTokenExpiry.HasValue)
+                                {
+                                    <span class="@(_accessTokenExpiry.Value < DateTimeOffset.UtcNow ? "text-danger" : "")">
+                                        @_accessTokenExpiry.Value.ToLocalTime().ToString("HH:mm:ss")
+                                    </span>
+                                    @if (_accessTokenExpiry.Value < DateTimeOffset.UtcNow)
+                                    {
+                                        <span class="badge bg-secondary ms-1">Verlopen</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </dd>
+
+                            <dt class="col-sm-5">Refresh token verloopt</dt>
+                            <dd class="col-sm-7 font-monospace">@(_refreshTokenExpiry?.ToLocalTime().ToString("dd-MM-yyyy HH:mm:ss") ?? "—")</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── Alle claims ──────────────────────────────────────────────────────── *@
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Alle Claims</strong>
+                <span class="badge bg-secondary">@context.User.Claims.Count()</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0 small">
+                        <thead class="table-dark">
+                            <tr>
+                                <th style="width:40%">Type</th>
+                                <th>Waarde</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var claim in context.User.Claims.OrderBy(c => c.Type))
+                            {
+                                <tr>
+                                    <td><code class="text-primary">@claim.Type</code></td>
+                                    <td><span class="text-break">@claim.Value</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        @* ── Access token (JWT) ───────────────────────────────────────────────── *@
+        @if (_accessToken is not null)
+        {
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Access Token (JWT)</strong>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleToken">
+                        @(_toonToken ? "Verberg" : "Toon")
+                    </button>
+                </div>
+                @if (_toonToken)
+                {
+                    <div class="card-body">
+                        <textarea class="form-control font-monospace" rows="6" readonly>@_accessToken</textarea>
+                        <small class="text-muted mt-1 d-block">
+                            Decodeer op <a href="https://jwt.io" target="_blank">jwt.io</a>
+                        </small>
+                    </div>
+                }
+            </div>
+        }
+
+    </Authorized>
+    <NotAuthorized>
+        <RedirectToNotLoggedIn />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private string?              _accessToken;
+    private bool                 _toonToken        = false;
+    private string?              _volledigeNaam;
+    private string?              _email;
+    private List<string>         _rollen           = [];
+    private DateTimeOffset?      _issuedAt;
+    private DateTimeOffset?      _cookieExpiry;
+    private DateTimeOffset?      _accessTokenExpiry;
+    private DateTimeOffset?      _refreshTokenExpiry;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext is null) return;
+
+        var user = httpContext.User;
+
+        // Profielgegevens uit claims
+        _volledigeNaam = user.FindFirst("name")?.Value
+                      ?? $"{user.FindFirst("given_name")?.Value} {user.FindFirst("family_name")?.Value}".Trim();
+        // De OIDC-middleware mapt "email" naar het Microsoft schema claim type
+        _email  = user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress")?.Value
+                  ?? user.FindFirst("email")?.Value;
+        _rollen = user.FindAll(
+                      "http://schemas.microsoft.com/ws/2008/06/identity/claims/role")
+                  .Select(c => c.Value)
+                  .OrderBy(r => r)
+                  .ToList();
+
+        // Tokens
+        _accessToken = await httpContext.GetTokenAsync("access_token");
+
+        var expiresAtRaw = await httpContext.GetTokenAsync("expires_at");
+        if (DateTimeOffset.TryParse(expiresAtRaw, out var expiresAt))
+            _accessTokenExpiry = expiresAt;
+
+        var refreshExpiresAtRaw = await httpContext.GetTokenAsync("refresh_expires_at");
+        if (DateTimeOffset.TryParse(refreshExpiresAtRaw, out var refreshExpiresAt))
+            _refreshTokenExpiry = refreshExpiresAt;
+
+        // Cookie sessietijden via AuthenticationProperties
+        var authResult = await httpContext.AuthenticateAsync(
+            Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
+
+        if (authResult?.Properties is { } props)
+        {
+            _issuedAt    = props.IssuedUtc;
+            _cookieExpiry = props.ExpiresUtc;
+        }
+    }
+
+    private void ToggleToken() => _toonToken = !_toonToken;
+}

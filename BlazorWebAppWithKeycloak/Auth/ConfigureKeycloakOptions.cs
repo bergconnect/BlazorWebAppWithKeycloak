@@ -8,19 +8,14 @@ namespace BlazorWebAppWithKeycloak.Auth;
 /// Configureert <see cref="OpenIdConnectOptions"/> met waarden uit <see cref="KeycloakOptions"/>
 /// via de Options-pattern, zonder BuildServiceProvider() aan te roepen.
 /// </summary>
-public sealed class ConfigureKeycloakOptions
-    : IConfigureNamedOptions<OpenIdConnectOptions>
+public sealed class ConfigureKeycloakOptions(IOptions<KeycloakOptions> keycloakOptions)
+        : IConfigureNamedOptions<OpenIdConnectOptions>
 {
-    private readonly KeycloakOptions _keycloak;
+    private readonly KeycloakOptions _keycloak = keycloakOptions.Value;
 
     // ASP.NET Core mapt Keycloak-rollen naar dit claim type
     private const string RoleClaimType =
         "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
-
-    public ConfigureKeycloakOptions(IOptions<KeycloakOptions> keycloakOptions)
-    {
-        _keycloak = keycloakOptions.Value;
-    }
 
     public void Configure(string? name, OpenIdConnectOptions options)
     {

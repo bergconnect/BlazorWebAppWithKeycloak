@@ -270,10 +270,10 @@ docker compose up -d
 # Stoppen (data blijft behouden)
 docker compose stop
 
-# Stoppen én verwijderen (data blijft in volume)
+# Stoppen én verwijderen van containers (volumes blijven behouden)
 docker compose down
 
-# Volledig resetten inclusief alle data
+# Volledig resetten inclusief ALLE data (dataprotection-keys én todo-data worden gewist)
 docker compose down -v
 
 # Logs bekijken
@@ -351,9 +351,15 @@ services:
       - Keycloak__Authority=${KEYCLOAK_AUTHORITY}
       - Keycloak__ClientId=${KEYCLOAK_CLIENT_ID}
       - Keycloak__RequireHttpsMetadata=true
+      # Slaat de SQLite database op in het gemounte volume zodat data
+      # bewaard blijft na container-herstart of image-update.
+      - ConnectionStrings__TodoDb=Data Source=/app/data/todo.db
+    volumes:
+      - todo-data:/app/data
 
 volumes:
   dataprotection-keys:
+  todo-data:
 ```
 
 ### Omgevingen

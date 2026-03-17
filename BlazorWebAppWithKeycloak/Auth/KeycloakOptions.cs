@@ -13,7 +13,7 @@ public sealed class KeycloakOptions
 
     /// <summary>
     /// De publieke OIDC Authority URL, inclusief realm-pad.
-    /// Dit is de URL waarmee de browser communiceert (bv. http://localhost:8082/realms/homelab).
+    /// Dit is de URL waarmee de browser communiceert (bv. http://localhost:8080/realms/homelab).
     /// </summary>
     [Required(AllowEmptyStrings = false)]
     [Url]
@@ -22,7 +22,7 @@ public sealed class KeycloakOptions
     /// <summary>
     /// Optionele interne metadata-URL voor server-to-server communicatie.
     /// Stel in wanneer de server Keycloak bereikt via een andere hostnaam dan de browser,
-    /// bv. http://keycloak:8082/realms/homelab/.well-known/openid-configuration in Docker.
+    /// bv. http://keycloak:8080/realms/homelab/.well-known/openid-configuration in Docker.
     /// </summary>
     public string? MetadataAddress { get; init; }
 

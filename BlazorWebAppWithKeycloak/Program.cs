@@ -21,11 +21,16 @@ builder.Services
     .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
     .SetApplicationName("BlazorWebAppWithKeycloak");
 
-// ─── API Client ───────────────────────────────────────────────────────────────
+// ─── Token services ───────────────────────────────────────────────────────────
+// TokenProvider: scoped — houdt tokens bij per Blazor circuit
+// TokenService:  scoped — voert refresh uit bij Keycloak
+// BearerTokenHandler: scoped — laadt tokens, valideert en voegt Bearer header toe
+builder.Services.AddScoped<TokenProvider>();
+builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<BearerTokenHandler>();
 
 builder.Services
-    .AddHttpClient<HelloWorldApiClient>(client =>
+    .AddHttpClient<TodoApiClient>(client =>
     {
         var apiBaseUrl = builder.Configuration["ApiSettings:BaseUrl"]
             ?? "http://localhost:5001";
@@ -44,7 +49,7 @@ if (!builder.Environment.IsDevelopment())
         options.ForwardedHeaders =
             ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
         // Vertrouw alle proxies in het interne netwerk.
-        options.KnownNetworks.Clear();
+        options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
     });
 }
@@ -69,6 +74,7 @@ app.UseAntiforgery();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
 app.MapAuthEndpoints();

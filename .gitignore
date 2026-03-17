@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 /BlazorWebAppWithKeycloak/appsettings.Development.json
 /BlazorWebAppWithKeycloak.API/appsettings.Development.json
+/BlazorWebAppWithKeycloak.API/todo.db
+/BlazorWebAppWithKeycloak.API/todo.db-shm
+/BlazorWebAppWithKeycloak.API/todo.db-wal

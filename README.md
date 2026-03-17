@@ -25,15 +25,13 @@ Deze README beschrijft de implementatie van Keycloak OIDC-authenticatie in de Bl
   - [RedirectToNotLoggedIn.razor](#redirecttonotloggedinrazor)
   - [AccessDenied.razor](#accessdeniedrazor)
   - [NavMenu.razor](#navmenurazor)
-  - [Claims.razor](#claimsrazor)
-  - [Weather.razor](#weatherrazor)
-  - [Counter.razor](#counterrazor)
-  - [HelloWorld.razor](#helloworldrazor)
-  - [Admin.razor](#adminrazor)
+  - [Todo.razor](#todorazor)
 - [Services](#services)
+  - [TokenProvider](#tokenprovider)
+  - [TokenService](#tokenservice)
   - [BearerTokenHandler](#bearertokenhandler)
-  - [HelloWorldApiClient](#helloworldapiclient)
-  - [WeatherForecast](#weatherforecast)
+  - [TodoApiClient](#todoapiclient)
+- [Sessiebeheer](#sessiebeheer)
 - [Docker](#docker)
 - [CI/CD](#cicd)
 - [Stroom](#stroom)
@@ -67,17 +65,16 @@ solution/
 │   │   │   └── NavMenu.razor             # Login/logout navigatie
 │   │   ├── Pages/
 │   │   │   ├── AccessDenied.razor        # /niet-aangemeld
-│   │   │   ├── Claims.razor              # /claims — token-overzicht
-│   │   │   ├── Counter.razor             # /counter — admin-only knop
-│   │   │   ├── Admin.razor               # /admin — admin-only API aanroep
-│   │   │   ├── HelloWorld.razor          # /hello-world — API aanroep
-│   │   │   └── Weather.razor             # /weather — vereist login
+│   │   │   ├── Home.razor                # /
+│   │   │   ├── NotFound.razor            # 404 pagina
+│   │   │   └── Todo.razor                # /todos — persoonlijke takenlijst
 │   │   ├── RedirectToNotLoggedIn.razor   # Navigeert naar /niet-aangemeld
 │   │   └── Routes.razor                  # AuthorizeRouteView
 │   ├── Services/
-│   │   ├── BearerTokenHandler.cs         # Voegt Bearer token toe aan HttpClient
-│   │   ├── HelloWorldApiClient.cs        # Typed HttpClient voor de API
-│   │   └── WeatherForecast.cs            # Record model voor weersdata
+│   │   ├── TokenProvider.cs              # Houdt tokens bij per Blazor circuit
+│   │   ├── TokenService.cs               # Voert token refresh uit bij Keycloak
+│   │   ├── BearerTokenHandler.cs         # Laadt tokens, valideert, voegt Bearer header toe
+│   │   └── TodoApiClient.cs              # Typed HttpClient voor Todo endpoints
 │   ├── appsettings.json
 │   ├── appsettings.Development.json
 │   └── Program.cs                        # ForwardedHeaders + omgevingsafhankelijke cookies
@@ -86,8 +83,13 @@ solution/
 │   │   ├── AuthServiceExtensions.cs      # AddKeycloakJwtAuthentication()
 │   │   ├── ConfigureJwtBearerOptions.cs  # Vult JwtBearerOptions
 │   │   └── KeycloakOptions.cs            # Configuratie + gedeelde RoleClaimType
-│   ├── Extensions/
-│   │   └── HelloEndpointExtensions.cs    # MapHelloEndpoints()
+│   ├── Data/
+│   │   └── TodoDbContext.cs              # EF Core context voor SQLite
+│   ├── Extentions/
+│   │   └── TodoEndpointExtensions.cs     # MapTodoEndpoints()
+│   ├── Models/
+│   │   ├── TodoItem.cs                   # EF Core entiteit + Priority enum
+│   │   └── TodoDtos.cs                   # Request/response DTOs
 │   ├── appsettings.json
 │   ├── appsettings.Development.json
 │   └── Program.cs
@@ -102,12 +104,12 @@ solution/
 
 **Blazor Web App:**
 ```xml
-<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.4" />
+<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.5" />
 ```
 
 **API:**
 ```xml
-<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
 ```
 
 ---
@@ -163,6 +165,25 @@ dotnet user-secrets set "Keycloak:ClientSecret" "jouw-secret"
 export Keycloak__ClientSecret="jouw-secret"
 ```
 
+### Logging
+
+Datum/tijd wordt toegevoegd via `appsettings.Development.json` — geen codewijziging nodig:
+
+```json
+"Logging": {
+  "Console": {
+    "FormatterName": "simple",
+    "FormatterOptions": {
+      "TimestampFormat": "yyyy-MM-dd HH:mm:ss ",
+      "SingleLine": true,
+      "UseUtcTimestamp": false
+    }
+  }
+}
+```
+
+In productie (Docker) wordt geen formatter geconfigureerd zodat log-aggregators de ruwe regels kunnen verwerken.
+
 ---
 
 ## Architectuur — Blazor Web App
@@ -200,13 +221,14 @@ Implementeert `IConfigureNamedOptions<OpenIdConnectOptions>`.
 | Instelling                      | Waarde / Toelichting                                                                |
 |---------------------------------|-------------------------------------------------------------------------------------|
 | `ResponseType`                  | `code` — Authorization Code Flow                                                    |
-| `SaveTokens`                    | `true` — tokens beschikbaar via `GetTokenAsync` voor API-aanroepen                  |
+| `SaveTokens`                    | `true` — tokens worden opgeslagen in cookie, beschikbaar via `GetTokenAsync`         |
 | `GetClaimsFromUserInfoEndpoint` | `true` — profiel- en emailclaims worden opgehaald                                   |
 | Scopes                          | `openid`, `profile`, `email`                                                        |
 | `MetadataAddress`               | Interne Docker URL; alleen ingesteld als `KeycloakOptions.MetadataAddress` gevuld is|
 | `NameClaimType`                 | `preferred_username`                                                                |
 | `RoleClaimType`                 | `http://schemas.microsoft.com/ws/2008/06/identity/claims/role`                      |
 | `PushedAuthorizationBehavior`   | `Disable` — PAR vereist expliciete configuratie in Keycloak                         |
+| `OnTokenResponseReceived`       | Slaat `refresh_expires_at` op als extra token voor weergave op de Claims-pagina     |
 
 ---
 
@@ -216,7 +238,7 @@ Implementeert `IConfigureNamedOptions<OpenIdConnectOptions>`.
 
 Bundelt alle registraties in `builder.Services.AddKeycloakAuthentication()`.
 
-- Cookie: `HttpOnly = true`, `SameSite = Lax`, `SecurePolicy = None`
+- Cookie: `HttpOnly = true`, `SameSite = Lax`, `ExpireTimeSpan = 8 uur`, `SlidingExpiration = true`
 - Correlation- en nonce-cookies: `SameSite = Unspecified`, `SecurePolicy = None`
 
 > **SameSite = Unspecified:** Keycloak draait op een ander IP dan de Blazor-app. Met `Lax` blokkeert de browser de correlation cookie bij de terugkeer van Keycloak. `Unspecified` stuurt geen `SameSite`-attribuut, waardoor de cookie altijd wordt doorgestuurd.
@@ -275,21 +297,25 @@ Valideert inkomende JWT-tokens op issuer, audience, handtekening (via JWKS) en l
 Registreert JWT Bearer-authenticatie via `builder.Services.AddKeycloakJwtAuthentication()`.
 
 - Policy `"UserRole"` vereist de `user` client-rol
-- Policy `"AdminRole"` vereist de `admin` client-rol
+- Policy `"AdminRole"` is geregistreerd voor toekomstig gebruik
 - `RoleClaimType` via `KeycloakOptions.RoleClaimType` (geen duplicatie)
 
 ---
 
-### HelloEndpointExtensions
+### TodoEndpointExtensions
 
-`Extensions/HelloEndpointExtensions.cs`
+`Extentions/TodoEndpointExtensions.cs`
 
-Extension method op `IEndpointRouteBuilder`. Registreert alle Hello World-endpoints via `app.MapHelloEndpoints()` in `Program.cs`. Dit patroon is consistent met `MapAuthEndpoints()` in de Blazor app en houdt `Program.cs` overzichtelijk naarmate het aantal endpoints groeit.
+Registreert alle todo-endpoints via `app.MapTodoEndpoints()`. Alle routes vereisen de `UserRole` policy en filteren automatisch op de ingelogde gebruiker via de `preferred_username` claim.
 
-| Endpoint     | Authenticatie | Toelichting                            |
-|--------------|---------------|----------------------------------------|
-| `GET /api/hello` | Policy `UserRole` | Retourneert gebruikersnaam en tijdstip |
-| `GET /api/admin` | Policy `AdminRole` | Retourneert gebruikersnaam en tijdstip — alleen voor admins |
+| Endpoint | Methode | Omschrijving |
+|---|---|---|
+| `/api/todos` | `GET` | Alle items van de ingelogde gebruiker |
+| `/api/todos/{id}` | `GET` | Één item |
+| `/api/todos` | `POST` | Nieuw item aanmaken |
+| `/api/todos/{id}` | `PUT` | Item bijwerken |
+| `/api/todos/{id}/afgerond` | `PATCH` | Afgerond toggle |
+| `/api/todos/{id}` | `DELETE` | Item verwijderen |
 
 ---
 
@@ -311,59 +337,84 @@ Route: `/niet-aangemeld`. Leest `returnUrl` via `[SupplyParameterFromQuery]` en 
 
 Toont via `<AuthorizeView>` conditioneel een inlog- of uitlogknop. Gebruikt `forceLoad: true` zodat de browser echte HTTP-requests stuurt naar de auth-endpoints.
 
-### Claims.razor
+### Todo.razor
 
-Route: `/claims`. Gebruikt `<AuthorizeView>` zonder `@attribute [Authorize]` — de dubbele check veroorzaakte problemen bij InteractiveServer. Niet-ingelogde gebruikers worden via `<RedirectToNotLoggedIn />` omgeleid.
+Route: `/todos`. Persoonlijke takenlijst — elke gebruiker ziet en beheert alleen zijn eigen items. Functionaliteit:
 
-### Weather.razor
+| Functie | Omschrijving |
+|---|---|
+| Filteren | Alle / Open / Afgerond met tellers |
+| Nieuw item | Inline formulier met titel, omschrijving, prioriteit en vervaldatum |
+| Bewerken | Zelfde formulier, gevuld met bestaande waarden |
+| Afgerond toggle | Checkbox per item |
+| Verwijderen | Bevestigingsdialoog |
+| Verlopen items | Rode markering als vervaldatum in het verleden ligt |
 
-Route: `/weather`. Gebruikt `<AuthorizeView>` in plaats van `@attribute [Authorize]` om een directe OIDC-server-challenge te vermijden. Het `WeatherForecast` model staat als `record` in een apart bestand in `Services/`.
-
-### Counter.razor
-
-Route: `/counter`. De knop is alleen bedienbaar met de `admin` client-rol via `<AuthorizeView Roles="admin">`. Niet-admins zien de knop uitgeschakeld.
-
-### HelloWorld.razor
-
-Route: `/hello-world`. Roept server-side de API aan via `HelloWorldApiClient`. Toont het antwoord en een knop om opnieuw aan te roepen. Foutafhandeling per HTTP-statuscode (401, 403, overig).
-
----
-
-### Admin.razor
-
-Route: `/admin`. Roept server-side het admin-endpoint aan via `HelloWorldApiClient.GetAdminAsync()`. Gebruikt geneste `<AuthorizeView>` met expliciete `Context` namen om ambiguïteitsfouten te voorkomen:
-
-- Buitenste `<AuthorizeView>` — controleert of de gebruiker ingelogd is
-- Binnenste `<AuthorizeView Roles="admin" Context="adminContext">` — controleert de admin-rol
-
-Niet-admins zien een waarschuwingsmelding. De **Admin API** link in het navigatiemenu is alleen zichtbaar voor gebruikers met de `admin` rol.
+Bij een 401 (verlopen sessie) wordt de gebruiker automatisch naar `/login?returnUrl=/todos` doorgestuurd.
 
 ---
 
 ## Services
 
+### TokenProvider
+
+`Services/TokenProvider.cs`
+
+Scoped service die de tokens van de ingelogde gebruiker bijhoudt per Blazor circuit. Gevuld tijdens de pre-render HTTP-request via `LaadVanuitHttpContextAsync()` — op dat moment is `HttpContext` nog beschikbaar. Na een succesvolle refresh bijgewerkt via `SlaTokensOp()`. Bij een verlopen Keycloak-sessie (`invalid_grant`) worden de tokens gewist via `WisTokens()`.
+
+`IsGeladen` is een berekende property op basis van de aanwezigheid van tokens — nooit een vlag die vroegtijdig gezet kan worden.
+
+### TokenService
+
+`Services/TokenService.cs`
+
+Scoped service die de token refresh uitvoert. Eén publieke methode: `GetGeldigTokenAsync()`.
+
+| Situatie | Gedrag |
+|---|---|
+| Tokens nog niet geladen | Geeft `null` terug — geen refresh geprobeerd |
+| Token nog geldig | Geeft `AccessToken` direct terug |
+| Token verlopen of binnen 30s | Refresh via Keycloak token endpoint |
+| Refresh mislukt (`invalid_grant`) | Wist tokens via `TokenProvider.WisTokens()`, geeft `null` terug |
+
+Bij een mislukte refresh wordt de volledige Keycloak error response gelogd (`error_description`) voor directe diagnose.
+
 ### BearerTokenHandler
 
 `Services/BearerTokenHandler.cs`
 
-`DelegatingHandler` die als pipeline-middleware op de `HttpClient` zit. Pakt het `access_token` uit de sessiecookie en voegt het toe als `Authorization: Bearer` header.
+Scoped `DelegatingHandler` die bij elke uitgaande API-request drie stappen uitvoert:
 
-### HelloWorldApiClient
+1. **Tokens laden** — als `HttpContext` beschikbaar is én tokens nog niet geladen zijn, laadt hij ze uit de cookie via `TokenProvider.LaadVanuitHttpContextAsync()`
+2. **Token valideren/verversen** — roept `TokenService.GetGeldigTokenAsync()` aan
+3. **Header toevoegen** — zet `Authorization: Bearer <token>`, of geeft `401` terug als er geen geldig token is
 
-`Services/HelloWorldApiClient.cs`
+Werkt in beide Blazor-fasen: pre-render (HttpContext beschikbaar) en circuit/SignalR (tokens al in `TokenProvider`).
 
-Typed `HttpClient` voor de API. Endpoint paden staan als `private const`. Biedt twee methoden:
+### TodoApiClient
 
-| Methode | Endpoint | Vereiste rol |
-|---------|----------|--------------|
-| `GetHelloAsync()` | `GET /api/hello` | `user` |
-| `GetAdminAsync()` | `GET /api/admin` | `admin` |
+`Services/TodoApiClient.cs`
 
-Geregistreerd in `Program.cs` met `BearerTokenHandler`:
+Typed `HttpClient` voor alle todo-endpoints. Bevat ook de gedeelde DTOs (`TodoResponse`, `TodoAanmakenRequest`, `TodoBijwerkenRequest`) en de `Priority` enum.
+
+| Methode | Endpoint | Omschrijving |
+|---------|----------|-------------|
+| `GetAlleAsync()` | `GET /api/todos` | Alle eigen items |
+| `GetAsync(id)` | `GET /api/todos/{id}` | Één item |
+| `AanmakenAsync(request)` | `POST /api/todos` | Nieuw item |
+| `BijwerkenAsync(id, request)` | `PUT /api/todos/{id}` | Item bijwerken |
+| `ToggleAfgerondAsync(id)` | `PATCH /api/todos/{id}/afgerond` | Afgerond toggle |
+| `VerwijderenAsync(id)` | `DELETE /api/todos/{id}` | Item verwijderen |
+
+Geregistreerd in `Program.cs`:
 
 ```csharp
+builder.Services.AddScoped<TokenProvider>();
+builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<BearerTokenHandler>();
+
 builder.Services
-    .AddHttpClient<HelloWorldApiClient>(client =>
+    .AddHttpClient<TodoApiClient>(client =>
     {
         client.BaseAddress = new Uri(
             builder.Configuration["ApiSettings:BaseUrl"] ?? "http://localhost:5001");
@@ -371,11 +422,41 @@ builder.Services
     .AddHttpMessageHandler<BearerTokenHandler>();
 ```
 
-### WeatherForecast
+---
 
-`Services/WeatherForecast.cs`
+## Sessiebeheer
 
-Immutable `record` model. Staat in een apart bestand in plaats van als private nested class in de Razor component.
+### Token levenscyclus
+
+```
+Pre-render (HTTP-request, HttpContext beschikbaar)
+  └─ BearerTokenHandler.SendAsync()
+       └─ TokenProvider.LaadVanuitHttpContextAsync()
+            └─ Leest access_token, refresh_token, expires_at uit cookie
+
+Circuit-fase (SignalR, HttpContext = null)
+  └─ BearerTokenHandler.SendAsync()
+       ├─ Token nog geldig → Bearer header toevoegen
+       └─ Token verlopen →
+            └─ TokenService.VervangTokenAsync()
+                 ├─ POST /token refresh_token → Keycloak
+                 ├─ Succes → TokenProvider.SlaTokensOp() → Bearer header
+                 └─ invalid_grant / Session not active →
+                      └─ TokenProvider.WisTokens()
+                           └─ Pagina stuurt door naar /login?returnUrl=...
+```
+
+### Keycloak sessie verlopen (`Session not active`)
+
+Dit is geen code-fout maar een Keycloak-sessievervalling. Oorzaken:
+
+| Oorzaak | Oplossing |
+|---|---|
+| Keycloak herstart (development) | Uitloggen en opnieuw inloggen — of persistente Keycloak-opslag configureren |
+| SSO Session Idle timeout | Zet **Realm Settings → Sessions → SSO Session Idle** gelijk aan `ExpireTimeSpan` (8 uur) |
+| Keycloak dev mode (in-memory) | Sessies gaan verloren bij herstart; gebruik `start` in plaats van `start-dev` voor persistentie |
+
+De applicatie handelt dit af door de tokens te wissen en de gebruiker door te sturen naar `/login` met een `returnUrl`, zodat hij na het inloggen terugkeert op de juiste pagina.
 
 ---
 
@@ -383,10 +464,25 @@ Immutable `record` model. Staat in een apart bestand in plaats van als private n
 
 ### Services
 
-| Service    | Image                                         | Poort          |
-|------------|-----------------------------------------------|----------------|
-| `blazor` | `${BLAZOR_IMAGE}` (via `.env`)  | `5000 → 8080`  |
-| `api`    | `${API_IMAGE}` (via `.env`)     | `5001 → 8080`  |
+| Service    | Image                          | Poort         |
+|------------|--------------------------------|---------------|
+| `blazor` | `${BLAZOR_IMAGE}` (via `.env`) | `5000 → 8080` |
+| `api`    | `${API_IMAGE}` (via `.env`)    | `5001 → 8080` |
+
+### Volumes
+
+| Volume               | Gemount in       | Inhoud                                        |
+|----------------------|------------------|-----------------------------------------------|
+| `dataprotection-keys` | `/app/keys`     | ASP.NET Core Data Protection sleutels (Blazor) |
+| `todo-data`          | `/app/data`      | SQLite database `todo.db` (API)               |
+
+De database-locatie wordt via de omgevingsvariabele `ConnectionStrings__TodoDb` doorgegeven aan de API container, zodat `appsettings.json` niet gewijzigd hoeft te worden per omgeving:
+
+```yaml
+- ConnectionStrings__TodoDb=Data Source=/app/data/todo.db
+```
+
+> **Belangrijk:** verwijder het `todo-data` volume niet met `docker compose down -v` tenzij je de todolijsten van alle gebruikers wilt wissen. Gebruik `docker compose down` (zonder `-v`) om alleen de containers te stoppen.
 
 ### URL-configuratie per service
 
@@ -405,6 +501,7 @@ De app draait achter een reverse proxy op `https://<app-domein>`. Keycloak is ge
 - Keycloak__Authority=${KEYCLOAK_AUTHORITY}
 - Keycloak__ClientId=${KEYCLOAK_CLIENT_ID}
 - Keycloak__RequireHttpsMetadata=true
+- ConnectionStrings__TodoDb=Data Source=/app/data/todo.db
 ```
 
 ### `.env` bestand
@@ -428,6 +525,8 @@ docker compose up -d
 docker compose logs -f blazor
 docker compose logs -f api
 ```
+
+> Gebruik `docker compose down` om containers te stoppen — de volumes (`dataprotection-keys` en `todo-data`) blijven dan behouden. Gebruik `docker compose down -v` **alleen** als je ook alle data wilt wissen.
 
 ---
 
@@ -515,13 +614,16 @@ Gebruiker logt in → /signin-oidc?code=...
 OIDC-middleware wisselt code in voor tokens (backchannel)
         │
         ▼
-Cookie aangemaakt → redirect naar returnUrl
+Cookie aangemaakt (access_token, refresh_token, expires_at opgeslagen)
+        │
+        ▼
+Redirect naar returnUrl
 ```
 
 ### Niet-ingelogde gebruiker bezoekt beveiligde pagina
 
 ```
-/weather, /claims of /hello-world
+/todos
         │
         ▼
 AuthorizeView: niet ingelogd
@@ -536,21 +638,24 @@ Gebruiker klikt Inloggen → na login terug naar originele pagina
 ### API aanroepen vanuit Blazor
 
 ```
-HelloWorld.razor → HelloWorldApiClient.GetHelloAsync()
-       of
-Admin.razor → HelloWorldApiClient.GetAdminAsync()
+Todo.razor → TodoApiClient.GetAlleAsync()
         │
         ▼
-BearerTokenHandler pakt access_token uit sessiecookie
+BearerTokenHandler.SendAsync()
+        ├─ Stap 1: TokenProvider.LaadVanuitHttpContextAsync()  (alleen pre-render)
+        ├─ Stap 2: TokenService.GetGeldigTokenAsync()
+        │           ├─ Token geldig → direct teruggeven
+        │           └─ Token verlopen → refresh via Keycloak
+        └─ Stap 3: Authorization: Bearer <token> header toevoegen
         │
         ▼
-GET /api/hello met Authorization: Bearer <token>
+GET /api/todos met Authorization: Bearer <token>
         │
         ▼
-API valideert token (issuer, audience, handtekening, rol "user")
+API valideert token (issuer, audience, handtekening, rol)
         │
-        ▼
-{ "message": "Hallo, lvdberg!", "timestamp": "..." }
+        ├─ 200 OK → response tonen
+        └─ 401 Unauthorized → NavigateTo("/login?returnUrl=...")
 ```
 
 ### Uitloggen

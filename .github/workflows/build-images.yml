@@ -1,5 +1,4 @@
 name: Docker Build and Push
-
 on:
   workflow_dispatch:
   push:
@@ -9,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write  # nodig voor SARIF upload
 
 env:
   DOTNET_VERSION: '10.x'
@@ -25,9 +25,7 @@ jobs:
           - project: BlazorWebAppWithKeycloak.API
             name: API
             repository: ${{ vars.API_REPOSITORY }}
-
     name: Build ${{ matrix.name }}
-
     steps:
       - name: Checkout Source Repository
         uses: actions/checkout@v4
@@ -45,13 +43,51 @@ jobs:
         with:
           path: ${{ matrix.project }}
 
-      - name: Build and publish container image
+      # Stap 1 — Bouw lokaal, nog NIET naar registry
+      - name: Build container image (local only)
         run: |
           dotnet publish ${{ matrix.project }}/${{ matrix.project }}.csproj \
             -c Release /t:PublishContainer \
-            -p:ContainerRegistry=${{ secrets.CONTAINER_REGISTRY }} \
             -p:ContainerRepository=${{ matrix.repository }} \
             -p:ContainerImageTags='"latest;${{ steps.nbgv.outputs.SemVer2 }}"'
-        env:
-          SDK_CONTAINER_REGISTRY_UNAME: ${{ secrets.DOCKER_USER }}
-          SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Stap 2 — Scan het lokale image
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.repository }}:latest
+          format: 'sarif'
+          output: 'trivy-${{ matrix.name }}.sarif'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      # Stap 3 — Upload resultaten naar GitHub Security tab
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()   # ook uploaden als de scan gefaald heeft
+        with:
+          sarif_file: 'trivy-${{ matrix.name }}.sarif'
+
+      # Stap 4 — Alleen pushen als scan geslaagd is
+      - name: Push container image to registry
+        run: |
+          docker tag ${{ matrix.repository }}:latest \
+            ${{ secrets.CONTAINER_REGISTRY }}/${{ matrix.repository }}:latest
+
+          docker tag ${{ matrix.repository }}:latest \
+            ${{ secrets.CONTAINER_REGISTRY }}/${{ matrix.repository }}:${{ steps.nbgv.outputs.SemVer2 }}
+
+          echo "${{ secrets.DOCKER_PASSWORD }}" | \
+            docker login ${{ secrets.CONTAINER_REGISTRY }} \
+            -u ${{ secrets.DOCKER_USER }} --password-stdin
+
+          docker push ${{ secrets.CONTAINER_REGISTRY }}/${{ matrix.repository }}:latest
+          docker push ${{ secrets.CONTAINER_REGISTRY }}/${{ matrix.repository }}:${{ steps.nbgv.outputs.SemVer2 }}
+
+      # Stap 5 — Opruimen (optioneel maar netjes)
+      - name: Remove local image
+        if: always()
+        run: |
+          docker rmi ${{ matrix.repository }}:latest || true
+          docker rmi ${{ matrix.repository }}:${{ steps.nbgv.outputs.SemVer2 }} || true

@@ -1,26 +1,23 @@
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
-
 namespace BlazorWebAppWithKeycloak.Services;
 
 // ── Gedeelde enumeratie ────────────────────────────────────────────────────────
 
 public enum Priority
 {
-    Laag    = 0,
+    Laag = 0,
     Normaal = 1,
-    Hoog    = 2
+    Hoog = 2
 }
 
 // ── Response DTO (spiegelt de API) ─────────────────────────────────────────────
 
 public sealed record TodoResponse(
-    int            Id,
-    string         Titel,
-    string?        Omschrijving,
-    bool           Afgerond,
-    Priority       Prioriteit,
-    DateOnly?      Vervaldatum,
+    int Id,
+    string Titel,
+    string? Omschrijving,
+    bool Afgerond,
+    Priority Prioriteit,
+    DateOnly? Vervaldatum,
     DateTimeOffset AangemaaktOp,
     DateTimeOffset GewijzigdOp
 );
@@ -28,16 +25,16 @@ public sealed record TodoResponse(
 // ── Request records ────────────────────────────────────────────────────────────
 
 public sealed record TodoAanmakenRequest(
-    string   Titel,
-    string?  Omschrijving,
+    string Titel,
+    string? Omschrijving,
     Priority Prioriteit,
     DateOnly? Vervaldatum
 );
 
 public sealed record TodoBijwerkenRequest(
-    string?   Titel,
-    string?   Omschrijving,
-    bool?     Afgerond,
+    string? Titel,
+    string? Omschrijving,
+    bool? Afgerond,
     Priority? Prioriteit,
     DateOnly? Vervaldatum
 );

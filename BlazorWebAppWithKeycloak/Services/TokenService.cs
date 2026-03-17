@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
+using System.Net.Http.Json;
 
 namespace BlazorWebAppWithKeycloak.Services;
 
@@ -19,6 +20,10 @@ public sealed class TokenService(
     /// </summary>
     public async Task<string?> GetGeldigTokenAsync(CancellationToken ct = default)
     {
+        // Tokens nog niet geladen — geef null terug zonder refresh te proberen
+        if (!tokenProvider.IsGeladen)
+            return null;
+
         // Token is nog geldig — direct teruggeven
         if (!tokenProvider.IsTokenVerlopenOfBijna())
             return tokenProvider.AccessToken;
@@ -39,15 +44,15 @@ public sealed class TokenService(
         try
         {
             var options = oidcOptions.Get(OpenIdConnectDefaults.AuthenticationScheme);
-            var config = await options.ConfigurationManager!.GetConfigurationAsync(ct);
+            var config  = await options.ConfigurationManager!.GetConfigurationAsync(ct);
 
             logger.LogDebug("Access token verversen via {TokenEndpoint}.", config.TokenEndpoint);
 
             using var http = new HttpClient();
             var body = new Dictionary<string, string>
             {
-                ["grant_type"] = "refresh_token",
-                ["client_id"] = options.ClientId!,
+                ["grant_type"]    = "refresh_token",
+                ["client_id"]     = options.ClientId!,
                 ["client_secret"] = options.ClientSecret!,
                 ["refresh_token"] = tokenProvider.RefreshToken!,
             };
@@ -59,9 +64,17 @@ public sealed class TokenService(
 
             if (!response.IsSuccessStatusCode)
             {
+                // Lees de response body voor directe diagnose in de logs
+                var fout = await response.Content.ReadAsStringAsync(ct);
                 logger.LogWarning(
-                    "Token refresh mislukt — Keycloak antwoordde met {StatusCode}.",
-                    (int)response.StatusCode);
+                    "Token refresh mislukt — Keycloak antwoordde met {StatusCode}: {Fout}.",
+                    (int)response.StatusCode, fout);
+
+                // Bij een verlopen of ongeldige sessie tokens wissen zodat de
+                // gebruiker netjes naar /login gestuurd kan worden
+                if (fout.Contains("invalid_grant") || fout.Contains("Session not active"))
+                    tokenProvider.WisTokens();
+
                 return null;
             }
 

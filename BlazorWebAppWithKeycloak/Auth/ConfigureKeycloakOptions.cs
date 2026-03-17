@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -9,19 +8,14 @@ namespace BlazorWebAppWithKeycloak.Auth;
 /// Configureert <see cref="OpenIdConnectOptions"/> met waarden uit <see cref="KeycloakOptions"/>
 /// via de Options-pattern, zonder BuildServiceProvider() aan te roepen.
 /// </summary>
-public sealed class ConfigureKeycloakOptions
-    : IConfigureNamedOptions<OpenIdConnectOptions>
+public sealed class ConfigureKeycloakOptions(IOptions<KeycloakOptions> keycloakOptions)
+        : IConfigureNamedOptions<OpenIdConnectOptions>
 {
-    private readonly KeycloakOptions _keycloak;
+    private readonly KeycloakOptions _keycloak = keycloakOptions.Value;
 
     // ASP.NET Core mapt Keycloak-rollen naar dit claim type
     private const string RoleClaimType =
         "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
-
-    public ConfigureKeycloakOptions(IOptions<KeycloakOptions> keycloakOptions)
-    {
-        _keycloak = keycloakOptions.Value;
-    }
 
     public void Configure(string? name, OpenIdConnectOptions options)
     {
@@ -46,35 +40,6 @@ public sealed class ConfigureKeycloakOptions
         options.RequireHttpsMetadata = _keycloak.RequireHttpsMetadata;
         options.TokenValidationParameters.NameClaimType = "preferred_username";
         options.TokenValidationParameters.RoleClaimType = RoleClaimType;
-
-        // Sla refresh_expires_in op als extra token zodat de Claims-pagina
-        // de vervaldatum van het refresh token kan tonen.
-        // refresh_expires_in zit als raw parameter in de token response body.
-        options.Events = new OpenIdConnectEvents
-        {
-            OnTokenResponseReceived = ctx =>
-            {
-                // Keycloak geeft refresh_expires_in terug als parameter in de JSON response
-                var refreshExpiresIn = ctx.TokenEndpointResponse.GetParameter("refresh_expires_in")?.ToString();
-                if (!string.IsNullOrEmpty(refreshExpiresIn)
-                    && int.TryParse(refreshExpiresIn, out var seconds))
-                {
-                    var refreshExpiresAt = DateTimeOffset.UtcNow
-                        .AddSeconds(seconds)
-                        .ToString("o");
-
-                    ctx.Properties!.StoreTokens(
-                        ctx.Properties.GetTokens().Append(
-                            new AuthenticationToken
-                            {
-                                Name  = "refresh_expires_at",
-                                Value = refreshExpiresAt
-                            }));
-                }
-
-                return Task.CompletedTask;
-            }
-        };
 
         // ASP.NET Core 9+ stuurt standaard PAR-requests. Keycloak vereist
         // expliciete activering van PAR per client (Clients → Advanced →

@@ -40,7 +40,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
-app.MapHelloEndpoints();
 app.MapTodoEndpoints();
 
 app.Run();

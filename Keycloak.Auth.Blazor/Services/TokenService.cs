@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
 
@@ -46,15 +46,15 @@ public sealed class TokenService(
         try
         {
             var options = oidcOptions.Get(OpenIdConnectDefaults.AuthenticationScheme);
-            var config  = await options.ConfigurationManager!.GetConfigurationAsync(ct);
+            var config = await options.ConfigurationManager!.GetConfigurationAsync(ct);
 
             logger.LogDebug("Access token verversen via {TokenEndpoint}.", config.TokenEndpoint);
 
             using var http = new HttpClient();
             var body = new Dictionary<string, string>
             {
-                ["grant_type"]    = "refresh_token",
-                ["client_id"]     = options.ClientId!,
+                ["grant_type"] = "refresh_token",
+                ["client_id"] = options.ClientId!,
                 ["client_secret"] = options.ClientSecret!,
                 ["refresh_token"] = tokenProvider.RefreshToken!,
             };

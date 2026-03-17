@@ -113,7 +113,7 @@ public static class KeycloakAuthBlazorExtensions
 
             await ctx.ChallengeAsync(
                 OpenIdConnectDefaults.AuthenticationScheme,
-                new AuthenticationProperties
+                new Microsoft.AspNetCore.Authentication.AuthenticationProperties
                 {
                     RedirectUri = redirectUri
                 });

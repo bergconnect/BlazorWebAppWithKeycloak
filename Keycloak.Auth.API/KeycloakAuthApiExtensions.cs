@@ -1,11 +1,10 @@
-using Keycloak.Auth.API.Internal;
+using Keycloak.Auth.Api.Internal;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Keycloak.Auth.Api;
-
-// ── Publieke extensiemethoden ─────────────────────────────────────────────────
 
 /// <summary>
 /// Extensiemethoden voor het registreren van Keycloak JWT-authenticatie
@@ -29,7 +28,7 @@ public static class KeycloakAuthApiExtensions
     /// </summary>
     public static IServiceCollection AddKeycloakApiAuth(
         this IServiceCollection services,
-        Action<Microsoft.AspNetCore.Authorization.AuthorizationOptions>? configureAuthorization = null)
+        Action<AuthorizationOptions>? configureAuthorization = null)
     {
         services
             .AddOptions<KeycloakOptions>()

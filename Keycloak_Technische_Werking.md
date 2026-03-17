@@ -44,13 +44,13 @@ Browser ──── HTTPS ────► Blazor Web App ──── Bearer to
 
 | Component | Bestand | Verantwoordelijkheid |
 |---|---|---|
-| `ConfigureKeycloakOptions` | `Auth/ConfigureKeycloakOptions.cs` | Configureert de OIDC-middleware |
-| `AuthServiceExtensions` | `Auth/AuthServiceExtensions.cs` | Registreert authenticatie en cookie-instellingen |
-| `AuthEndpointExtensions` | `Auth/AuthEndpointExtensions.cs` | `/login` en `/logout` endpoints |
-| `TokenProvider` | `Services/TokenProvider.cs` | Houdt tokens in memory per Blazor circuit |
-| `TokenService` | `Services/TokenService.cs` | Voert token refresh uit bij Keycloak |
-| `BearerTokenHandler` | `Services/BearerTokenHandler.cs` | Voegt Bearer token toe aan API-requests |
-| `ConfigureJwtBearerOptions` | `API/Auth/ConfigureJwtBearerOptions.cs` | Configureert JWT-validatie in de API |
+| `KeycloakAuthBlazorExtensions` | `Keycloak.Auth.Blazor/KeycloakAuthBlazorExtensions.cs` | Publiek entry point — `AddKeycloakBlazorAuth()` en `MapKeycloakAuthEndpoints()` |
+| `ConfigureKeycloakOptions` | `Keycloak.Auth.Blazor/Internal/ConfigureKeycloakOptions.cs` | Configureert de OIDC-middleware (internal) |
+| `TokenProvider` | `Keycloak.Auth.Blazor/Services/TokenProvider.cs` | Houdt tokens in memory per Blazor circuit |
+| `TokenService` | `Keycloak.Auth.Blazor/Services/TokenService.cs` | Voert token refresh uit bij Keycloak |
+| `BearerTokenHandler` | `Keycloak.Auth.Blazor/Services/BearerTokenHandler.cs` | Voegt Bearer token toe aan API-requests |
+| `KeycloakAuthApiExtensions` | `Keycloak.Auth.Api/KeycloakAuthApiExtensions.cs` | Publiek entry point — `AddKeycloakApiAuth()` |
+| `ConfigureJwtBearerOptions` | `Keycloak.Auth.Api/Internal/ConfigureJwtBearerOptions.cs` | Configureert JWT-validatie in de API (internal) |
 
 ---
 
@@ -149,7 +149,7 @@ De OIDC-middleware slaat de tokens op in de authenticatiecookie (omdat `SaveToke
 | `refresh_expires_at` | ISO 8601 tijdstip waarop het refresh token verloopt |
 | `id_token` | JWT met gebruikersinformatie |
 
-De cookie-instellingen (`AuthServiceExtensions.cs`):
+De cookie-instellingen (geconfigureerd in `KeycloakAuthBlazorExtensions.AddKeycloakBlazorAuth()`):
 
 | Instelling | Waarde | Reden |
 |---|---|---|

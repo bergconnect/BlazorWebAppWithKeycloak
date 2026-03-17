@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Keycloak.Auth.Api;
 
-// ── Configuratie ──────────────────────────────────────────────────────────────
-
 /// <summary>
 /// Sterk-getypeerde configuratie voor de Keycloak JWT-validatie.
 /// Gebonden aan de sectie "Keycloak" in appsettings.json via de Options-pattern.

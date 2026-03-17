@@ -1,11 +1,8 @@
-using Keycloak.Auth.Api;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Keycloak.Auth.API.Internal;
-
-// ── Interne OIDC-opties configuratie ─────────────────────────────────────────
+namespace Keycloak.Auth.Api.Internal;
 
 internal sealed class ConfigureJwtBearerOptions(IOptions<KeycloakOptions> keycloakOptions)
     : IConfigureNamedOptions<JwtBearerOptions>

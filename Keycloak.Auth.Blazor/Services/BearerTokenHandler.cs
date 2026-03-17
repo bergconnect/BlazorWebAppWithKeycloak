@@ -1,5 +1,6 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+
 namespace Keycloak.Auth.Blazor.Services;
 
 /// <summary>
@@ -11,15 +12,15 @@ namespace Keycloak.Auth.Blazor.Services;
 /// </list>
 /// </summary>
 public sealed class BearerTokenHandler(
-    IHttpContextAccessor        httpContextAccessor,
-    TokenProvider               tokenProvider,
-    TokenService                tokenService,
+    IHttpContextAccessor httpContextAccessor,
+    TokenProvider tokenProvider,
+    TokenService tokenService,
     ILogger<BearerTokenHandler> logger)
     : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
-        CancellationToken  cancellationToken)
+        CancellationToken cancellationToken)
     {
         // Stap 1 — tokens laden vanuit HttpContext (alleen beschikbaar in pre-render fase)
         var httpContext = httpContextAccessor.HttpContext;

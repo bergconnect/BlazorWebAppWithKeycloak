@@ -10,26 +10,24 @@ Deze README beschrijft de implementatie van Keycloak OIDC-authenticatie in de Bl
 - [Projectstructuur](#projectstructuur)
 - [NuGet-pakketten](#nuget-pakketten)
 - [Configuratie](#configuratie)
-- [Architectuur — Blazor Web App](#architectuur--blazor-web-app)
+- [Keycloak.Auth.Blazor](#keycloakauthblazor)
   - [KeycloakOptions](#keycloakoptions)
-  - [ConfigureKeycloakOptions](#configurekeycloakoptions)
-  - [AuthServiceExtensions](#authserviceextensions)
-  - [AuthEndpointExtensions](#authendpointextensions)
-- [Architectuur — API](#architectuur--api)
+  - [KeycloakAuthBlazorExtensions](#keycloakauthblazorextensions)
+  - [Internal/ConfigureKeycloakOptions](#internalconfigurekeycloakoptions)
+  - [Services/TokenProvider](#servicestokenprovider)
+  - [Services/TokenService](#servicestokenservice)
+  - [Services/BearerTokenHandler](#servicesbearertokenhandler)
+- [Keycloak.Auth.Api](#keycloakauthapi)
   - [KeycloakOptions (API)](#keycloakoptions-api)
-  - [ConfigureJwtBearerOptions](#configurejwtbeareroptions)
-  - [AuthServiceExtensions (API)](#authserviceextensions-api)
-  - [HelloEndpointExtensions](#helloworldendpointextensions)
+  - [KeycloakAuthApiExtensions](#keycloakauthapextensions)
+  - [Internal/ConfigureJwtBearerOptions](#internalconfigurejwtbeareroptions)
 - [Blazor-integratie](#blazor-integratie)
   - [Routes.razor](#routesrazor)
   - [RedirectToNotLoggedIn.razor](#redirecttonotloggedinrazor)
   - [AccessDenied.razor](#accessdeniedrazor)
   - [NavMenu.razor](#navmenurazor)
   - [Todo.razor](#todorazor)
-- [Services](#services)
-  - [TokenProvider](#tokenprovider)
-  - [TokenService](#tokenservice)
-  - [BearerTokenHandler](#bearertokenhandler)
+- [Services — Blazor App](#services--blazor-app)
   - [TodoApiClient](#todoapiclient)
 - [Sessiebeheer](#sessiebeheer)
 - [Docker](#docker)
@@ -53,63 +51,89 @@ Deze README beschrijft de implementatie van Keycloak OIDC-authenticatie in de Bl
 solution/
 ├── .github/
 │   └── workflows/
-│       └── build-images.yml              # Gecombineerde CI/CD pipeline (matrix)
-├── BlazorWebAppWithKeycloak/             # Blazor Web App (frontend)
-│   ├── Auth/
-│   │   ├── AuthEndpointExtensions.cs     # /login en /logout endpoints
-│   │   ├── AuthServiceExtensions.cs      # AddKeycloakAuthentication()
-│   │   ├── ConfigureKeycloakOptions.cs   # Vult OpenIdConnectOptions
-│   │   └── KeycloakOptions.cs            # Sterk-getypeerde configuratie
+│       └── build-images.yml                    # Gecombineerde CI/CD pipeline (matrix)
+│
+├── Keycloak.Auth.Blazor/                       # Class library — Blazor OIDC authenticatie
+│   ├── Keycloak.Auth.Blazor.csproj             # SDK: Microsoft.NET.Sdk + FrameworkReference
+│   ├── KeycloakOptions.cs                      # Sterk-getypeerde configuratie
+│   ├── KeycloakAuthBlazorExtensions.cs         # AddKeycloakBlazorAuth() + MapKeycloakAuthEndpoints()
+│   ├── Internal/
+│   │   └── ConfigureKeycloakOptions.cs         # Vult OpenIdConnectOptions (internal)
+│   └── Services/
+│       ├── TokenProvider.cs                    # Houdt tokens bij per Blazor circuit
+│       ├── TokenService.cs                     # Voert token refresh uit bij Keycloak
+│       └── BearerTokenHandler.cs               # Laadt tokens, valideert, voegt Bearer header toe
+│
+├── Keycloak.Auth.Api/                          # Class library — API JWT authenticatie
+│   ├── Keycloak.Auth.Api.csproj                # SDK: Microsoft.NET.Sdk + FrameworkReference
+│   ├── KeycloakOptions.cs                      # Sterk-getypeerde configuratie + RoleClaimType
+│   ├── KeycloakAuthApiExtensions.cs            # AddKeycloakApiAuth()
+│   └── Internal/
+│       └── ConfigureJwtBearerOptions.cs        # Vult JwtBearerOptions (internal)
+│
+├── BlazorWebAppWithKeycloak/                   # Blazor Web App (frontend)
 │   ├── Components/
 │   │   ├── Layout/
-│   │   │   └── NavMenu.razor             # Login/logout navigatie
+│   │   │   └── NavMenu.razor                   # Login/logout navigatie
 │   │   ├── Pages/
-│   │   │   ├── AccessDenied.razor        # /niet-aangemeld
-│   │   │   ├── Home.razor                # /
-│   │   │   ├── NotFound.razor            # 404 pagina
-│   │   │   └── Todo.razor                # /todos — persoonlijke takenlijst
-│   │   ├── RedirectToNotLoggedIn.razor   # Navigeert naar /niet-aangemeld
-│   │   └── Routes.razor                  # AuthorizeRouteView
+│   │   │   ├── AccessDenied.razor              # /niet-aangemeld
+│   │   │   ├── Home.razor                      # /
+│   │   │   ├── NotFound.razor                  # 404 pagina
+│   │   │   ├── Profiel.razor                   # /profiel — claims en sessiegegevens
+│   │   │   └── Todo.razor                      # /todos — persoonlijke takenlijst
+│   │   ├── RedirectToNotLoggedIn.razor         # Navigeert naar /niet-aangemeld
+│   │   └── Routes.razor                        # AuthorizeRouteView
 │   ├── Services/
-│   │   ├── TokenProvider.cs              # Houdt tokens bij per Blazor circuit
-│   │   ├── TokenService.cs               # Voert token refresh uit bij Keycloak
-│   │   ├── BearerTokenHandler.cs         # Laadt tokens, valideert, voegt Bearer header toe
-│   │   └── TodoApiClient.cs              # Typed HttpClient voor Todo endpoints
+│   │   └── TodoApiClient.cs                    # Typed HttpClient voor Todo endpoints
+│   ├── BlazorWebAppWithKeycloak.csproj         # Verwijst naar Keycloak.Auth.Blazor
 │   ├── appsettings.json
 │   ├── appsettings.Development.json
-│   └── Program.cs                        # ForwardedHeaders + omgevingsafhankelijke cookies
-├── BlazorWebAppWithKeycloak.API/         # Minimal API (backend)
-│   ├── Auth/
-│   │   ├── AuthServiceExtensions.cs      # AddKeycloakJwtAuthentication()
-│   │   ├── ConfigureJwtBearerOptions.cs  # Vult JwtBearerOptions
-│   │   └── KeycloakOptions.cs            # Configuratie + gedeelde RoleClaimType
+│   └── Program.cs                              # AddKeycloakBlazorAuth() + MapKeycloakAuthEndpoints()
+│
+├── BlazorWebAppWithKeycloak.API/               # Minimal API (backend)
 │   ├── Data/
-│   │   └── TodoDbContext.cs              # EF Core context voor SQLite
+│   │   └── TodoDbContext.cs                    # EF Core context voor SQLite
 │   ├── Extentions/
-│   │   └── TodoEndpointExtensions.cs     # MapTodoEndpoints()
+│   │   └── TodoEndpointExtensions.cs           # MapTodoEndpoints()
 │   ├── Models/
-│   │   ├── TodoItem.cs                   # EF Core entiteit + Priority enum
-│   │   └── TodoDtos.cs                   # Request/response DTOs
+│   │   ├── TodoItem.cs                         # EF Core entiteit + Priority enum
+│   │   └── TodoDtos.cs                         # Request/response DTOs
+│   ├── BlazorWebAppWithKeycloak.API.csproj     # Verwijst naar Keycloak.Auth.Api
 │   ├── appsettings.json
 │   ├── appsettings.Development.json
-│   └── Program.cs
+│   └── Program.cs                              # AddKeycloakApiAuth()
+│
 ├── docker-compose.yml
-├── .env                                  # Secrets en image-namen (in .gitignore)
-└── .env.example                          # Voorbeeld zonder gevoelige waarden
+├── .env                                        # Secrets en image-namen (in .gitignore)
+└── .env.example                                # Voorbeeld zonder gevoelige waarden
 ```
 
 ---
 
 ## NuGet-pakketten
 
-**Blazor Web App:**
+De authenticatie-pakketten zitten in de class libraries — de applicatieprojecten hebben geen directe NuGet-referentie meer nodig.
+
+**Keycloak.Auth.Blazor:**
 ```xml
+<FrameworkReference Include="Microsoft.AspNetCore.App" />
 <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.5" />
 ```
 
-**API:**
+**Keycloak.Auth.Api:**
 ```xml
+<FrameworkReference Include="Microsoft.AspNetCore.App" />
 <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
+```
+
+**BlazorWebAppWithKeycloak:**
+```xml
+<ProjectReference Include="..\Keycloak.Auth.Blazor\Keycloak.Auth.Blazor.csproj" />
+```
+
+**BlazorWebAppWithKeycloak.API:**
+```xml
+<ProjectReference Include="..\Keycloak.Auth.Api\Keycloak.Auth.Api.csproj" />
 ```
 
 ---
@@ -165,25 +189,6 @@ dotnet user-secrets set "Keycloak:ClientSecret" "jouw-secret"
 export Keycloak__ClientSecret="jouw-secret"
 ```
 
-### Logging
-
-Datum/tijd wordt toegevoegd via `appsettings.Development.json` — geen codewijziging nodig:
-
-```json
-"Logging": {
-  "Console": {
-    "FormatterName": "simple",
-    "FormatterOptions": {
-      "TimestampFormat": "yyyy-MM-dd HH:mm:ss ",
-      "SingleLine": true,
-      "UseUtcTimestamp": false
-    }
-  }
-}
-```
-
-In productie (Docker) wordt geen formatter geconfigureerd zodat log-aggregators de ruwe regels kunnen verwerken.
-
 ---
 
 ## Architectuur — Blazor Web App
@@ -228,7 +233,6 @@ Implementeert `IConfigureNamedOptions<OpenIdConnectOptions>`.
 | `NameClaimType`                 | `preferred_username`                                                                |
 | `RoleClaimType`                 | `http://schemas.microsoft.com/ws/2008/06/identity/claims/role`                      |
 | `PushedAuthorizationBehavior`   | `Disable` — PAR vereist expliciete configuratie in Keycloak                         |
-| `OnTokenResponseReceived`       | Slaat `refresh_expires_at` op als extra token voor weergave op de Claims-pagina     |
 
 ---
 
@@ -238,7 +242,7 @@ Implementeert `IConfigureNamedOptions<OpenIdConnectOptions>`.
 
 Bundelt alle registraties in `builder.Services.AddKeycloakAuthentication()`.
 
-- Cookie: `HttpOnly = true`, `SameSite = Lax`, `ExpireTimeSpan = 8 uur`, `SlidingExpiration = true`
+- Cookie: `HttpOnly = true`, `SameSite = Lax`, `SecurePolicy = None`
 - Correlation- en nonce-cookies: `SameSite = Unspecified`, `SecurePolicy = None`
 
 > **SameSite = Unspecified:** Keycloak draait op een ander IP dan de Blazor-app. Met `Lax` blokkeert de browser de correlation cookie bij de terugkeer van Keycloak. `Unspecified` stuurt geen `SameSite`-attribuut, waardoor de cookie altijd wordt doorgestuurd.
@@ -297,25 +301,21 @@ Valideert inkomende JWT-tokens op issuer, audience, handtekening (via JWKS) en l
 Registreert JWT Bearer-authenticatie via `builder.Services.AddKeycloakJwtAuthentication()`.
 
 - Policy `"UserRole"` vereist de `user` client-rol
-- Policy `"AdminRole"` is geregistreerd voor toekomstig gebruik
+- Policy `"AdminRole"` vereist de `admin` client-rol
 - `RoleClaimType` via `KeycloakOptions.RoleClaimType` (geen duplicatie)
 
 ---
 
-### TodoEndpointExtensions
+### HelloEndpointExtensions
 
-`Extentions/TodoEndpointExtensions.cs`
+`Extensions/HelloEndpointExtensions.cs`
 
-Registreert alle todo-endpoints via `app.MapTodoEndpoints()`. Alle routes vereisen de `UserRole` policy en filteren automatisch op de ingelogde gebruiker via de `preferred_username` claim.
+Extension method op `IEndpointRouteBuilder`. Registreert alle Hello World-endpoints via `app.MapHelloEndpoints()` in `Program.cs`. Dit patroon is consistent met `MapAuthEndpoints()` in de Blazor app en houdt `Program.cs` overzichtelijk naarmate het aantal endpoints groeit.
 
-| Endpoint | Methode | Omschrijving |
-|---|---|---|
-| `/api/todos` | `GET` | Alle items van de ingelogde gebruiker |
-| `/api/todos/{id}` | `GET` | Één item |
-| `/api/todos` | `POST` | Nieuw item aanmaken |
-| `/api/todos/{id}` | `PUT` | Item bijwerken |
-| `/api/todos/{id}/afgerond` | `PATCH` | Afgerond toggle |
-| `/api/todos/{id}` | `DELETE` | Item verwijderen |
+| Endpoint     | Authenticatie | Toelichting                            |
+|--------------|---------------|----------------------------------------|
+| `GET /api/hello` | Policy `UserRole` | Retourneert gebruikersnaam en tijdstip |
+| `GET /api/admin` | Policy `AdminRole` | Retourneert gebruikersnaam en tijdstip — alleen voor admins |
 
 ---
 
@@ -339,18 +339,11 @@ Toont via `<AuthorizeView>` conditioneel een inlog- of uitlogknop. Gebruikt `for
 
 ### Todo.razor
 
-Route: `/todos`. Persoonlijke takenlijst — elke gebruiker ziet en beheert alleen zijn eigen items. Functionaliteit:
+Route: `/todos`. Persoonlijke takenlijst — elke gebruiker ziet en beheert alleen zijn eigen items. Functionaliteit: filteren (Alle/Open/Afgerond), aanmaken, bewerken, afgerond toggle, verwijderen met bevestiging en markering van verlopen items. Bij een 401 wordt de gebruiker automatisch naar `/login?returnUrl=/todos` doorgestuurd.
 
-| Functie | Omschrijving |
-|---|---|
-| Filteren | Alle / Open / Afgerond met tellers |
-| Nieuw item | Inline formulier met titel, omschrijving, prioriteit en vervaldatum |
-| Bewerken | Zelfde formulier, gevuld met bestaande waarden |
-| Afgerond toggle | Checkbox per item |
-| Verwijderen | Bevestigingsdialoog |
-| Verlopen items | Rode markering als vervaldatum in het verleden ligt |
+### Profiel.razor
 
-Bij een 401 (verlopen sessie) wordt de gebruiker automatisch naar `/login?returnUrl=/todos` doorgestuurd.
+Route: `/profiel`. Toont inloggegevens en claims ontvangen van Keycloak: gebruikerskaart (naam, e-mail, rollen), sessietijden (inlogmoment, cookie- en tokenvervaldatums) en de volledige claimstabel. Geen `@rendermode InteractiveServer` — statische pre-render is voldoende.
 
 ---
 
@@ -391,6 +384,17 @@ Scoped `DelegatingHandler` die bij elke uitgaande API-request drie stappen uitvo
 
 Werkt in beide Blazor-fasen: pre-render (HttpContext beschikbaar) en circuit/SignalR (tokens al in `TokenProvider`).
 
+### HelloWorldApiClient
+
+`Services/HelloWorldApiClient.cs`
+
+Typed `HttpClient` voor de Hello World en Admin endpoints.
+
+| Methode | Endpoint | Vereiste rol |
+|---------|----------|--------------|
+| `GetHelloAsync()` | `GET /api/hello` | `user` |
+| `GetAdminAsync()` | `GET /api/admin` | `admin` |
+
 ### TodoApiClient
 
 `Services/TodoApiClient.cs`
@@ -414,13 +418,19 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<BearerTokenHandler>();
 
 builder.Services
-    .AddHttpClient<TodoApiClient>(client =>
-    {
-        client.BaseAddress = new Uri(
-            builder.Configuration["ApiSettings:BaseUrl"] ?? "http://localhost:5001");
-    })
+    .AddHttpClient<HelloWorldApiClient>(...)
+    .AddHttpMessageHandler<BearerTokenHandler>();
+
+builder.Services
+    .AddHttpClient<TodoApiClient>(...)
     .AddHttpMessageHandler<BearerTokenHandler>();
 ```
+
+### WeatherForecast
+
+`Services/WeatherForecast.cs`
+
+Immutable `record` model. Staat in een apart bestand in plaats van als private nested class in de Razor component.
 
 ---
 
@@ -545,7 +555,7 @@ if (!builder.Environment.IsDevelopment())
     {
         options.ForwardedHeaders =
             ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownNetworks.Clear();
+        options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
     });
 }
@@ -623,7 +633,7 @@ Redirect naar returnUrl
 ### Niet-ingelogde gebruiker bezoekt beveiligde pagina
 
 ```
-/todos
+/todos of /profiel
         │
         ▼
 AuthorizeView: niet ingelogd

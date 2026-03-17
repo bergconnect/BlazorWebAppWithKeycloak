@@ -1,19 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
-    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
-    <UserSecretsId>3f654a4f-8d0b-4ca0-b3e1-bb59639348b6</UserSecretsId>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+		<EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+		<UserSecretsId>3f654a4f-8d0b-4ca0-b3e1-bb59639348b6</UserSecretsId>
+	</PropertyGroup>
 
-  <!-- ContainerRegistry en ContainerRepository worden ingesteld via de CI/CD pipeline
+	<!-- ContainerRegistry en ContainerRepository worden ingesteld via de CI/CD pipeline
        zodat deze waarden niet in versiebeheer hoeven te staan. -->
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.5" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Keycloak.Auth.Blazor\Keycloak.Auth.Blazor.csproj" />
+	</ItemGroup>
 
 </Project>

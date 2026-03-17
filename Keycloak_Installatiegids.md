@@ -258,7 +258,6 @@ Het token moet bevatten:
 | OIDC discovery endpoint   | `https://<keycloak-domein>/realms/<realm>/.well-known/openid-configuration`          |
 | Blazor Web App            | `https://<app-domein>`                                                         |
 | API (intern)              | `http://<host>:5001`                                                                   |
-| API Hello endpoint        | `http://<host>:5001/api/hello`                                                         |
 | API OpenAPI (development) | `http://localhost:5114/openapi/v1.json`                                                |
 
 ### Bijlage B — Container beheren

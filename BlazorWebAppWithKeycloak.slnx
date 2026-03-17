@@ -1,4 +1,6 @@
 <Solution>
   <Project Path="BlazorWebAppWithKeycloak.API/BlazorWebAppWithKeycloak.API.csproj" Id="22b6d33d-7883-4077-bb2f-e06b535307f1" />
   <Project Path="BlazorWebAppWithKeycloak/BlazorWebAppWithKeycloak.csproj" />
+  <Project Path="Keycloak.Auth.API/Keycloak.Auth.API.csproj" Id="7892a9eb-e030-41da-8b7b-fea727c52574" />
+  <Project Path="Keycloak.Auth.Blazor/Keycloak.Auth.Blazor.csproj" Id="f7db5464-6f8d-4645-b251-4acdd930d622" />
 </Solution>

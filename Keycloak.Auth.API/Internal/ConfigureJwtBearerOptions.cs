@@ -2,13 +2,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace BlazorWebAppWithKeycloak.API.Auth;
+namespace Keycloak.Auth.Api.Internal;
 
-/// <summary>
-/// Configureert <see cref="JwtBearerOptions"/> met waarden uit <see cref="KeycloakOptions"/>
-/// via de Options-pattern, zonder BuildServiceProvider() aan te roepen.
-/// </summary>
-public sealed class ConfigureJwtBearerOptions(IOptions<KeycloakOptions> keycloakOptions)
+internal sealed class ConfigureJwtBearerOptions(IOptions<KeycloakOptions> keycloakOptions)
     : IConfigureNamedOptions<JwtBearerOptions>
 {
     private readonly KeycloakOptions _keycloak = keycloakOptions.Value;
@@ -32,8 +28,6 @@ public sealed class ConfigureJwtBearerOptions(IOptions<KeycloakOptions> keycloak
             ValidateLifetime = true,
 
             // Sta geen klokafwijking toe groter dan 30 seconden.
-            // Standaard is dit 5 minuten, wat een aanvaller ruimte geeft
-            // om verlopen tokens te hergebruiken.
             ClockSkew = TimeSpan.FromSeconds(30),
 
             NameClaimType = "preferred_username",

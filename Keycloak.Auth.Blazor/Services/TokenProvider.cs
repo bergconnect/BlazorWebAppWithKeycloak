@@ -1,6 +1,7 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authentication;
 
-namespace BlazorWebAppWithKeycloak.Services;
+namespace Keycloak.Auth.Blazor.Services;
 
 /// <summary>
 /// Houdt de tokens van de ingelogde gebruiker bij per Blazor circuit.
@@ -24,7 +25,7 @@ public sealed class TokenProvider
 
     /// <summary>
     /// Laadt tokens uit de authenticatiecookie.
-    /// Sla over als al geladen, of als HttpContext geen tokens heeft.
+    /// Slaat over als al geladen, of als HttpContext geen tokens heeft.
     /// </summary>
     public async Task LaadVanuitHttpContextAsync(HttpContext httpContext)
     {
@@ -42,9 +43,7 @@ public sealed class TokenProvider
         ExpiresAt    = expiresAt;
     }
 
-    /// <summary>
-    /// Slaat vernieuwde tokens op na een succesvolle refresh bij Keycloak.
-    /// </summary>
+    /// <summary>Slaat vernieuwde tokens op na een succesvolle refresh bij Keycloak.</summary>
     public void SlaTokensOp(string accessToken, string? refreshToken, string expiresAt)
     {
         AccessToken = accessToken;
@@ -53,12 +52,9 @@ public sealed class TokenProvider
             RefreshToken = refreshToken;
     }
 
-    public bool HeeftRefreshToken => !string.IsNullOrEmpty(RefreshToken);
-
     /// <summary>
     /// Wist alle tokens. Wordt aangeroepen als de Keycloak-sessie niet meer
-    /// actief is (invalid_grant / Session not active), zodat de gebruiker
-    /// naar /login gestuurd kan worden.
+    /// actief is (invalid_grant / Session not active).
     /// </summary>
     public void WisTokens()
     {
@@ -67,12 +63,12 @@ public sealed class TokenProvider
         ExpiresAt    = null;
     }
 
+    public bool HeeftRefreshToken => !string.IsNullOrEmpty(RefreshToken);
+
     public bool IsTokenVerlopenOfBijna(int bufferSeconden = 30)
     {
-        // Nog niet geladen — niet als verlopen beschouwen, token refresh
-        // zou falen omdat er geen refresh token is
-        if (!IsGeladen)        return false;
-        if (string.IsNullOrEmpty(ExpiresAt))                     return false;
+        if (!IsGeladen)                                          return false;
+        if (string.IsNullOrEmpty(ExpiresAt))                    return false;
         if (!DateTimeOffset.TryParse(ExpiresAt, out var expiry)) return false;
         return expiry < DateTimeOffset.UtcNow.AddSeconds(bufferSeconden);
     }

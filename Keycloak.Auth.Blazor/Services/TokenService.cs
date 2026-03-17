@@ -1,12 +1,13 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
 
-namespace BlazorWebAppWithKeycloak.Services;
+namespace Keycloak.Auth.Blazor.Services;
 
 /// <summary>
 /// Voert de token refresh uit bij Keycloak via de refresh token grant.
-/// Geregistreerd als <c>Scoped</c> — gebruikt <see cref="TokenProvider"/>
+/// Geregistreerd als Scoped — gebruikt <see cref="TokenProvider"/>
 /// voor het lezen en opslaan van tokens.
 /// </summary>
 public sealed class TokenService(
@@ -15,8 +16,9 @@ public sealed class TokenService(
     ILogger<TokenService> logger)
 {
     /// <summary>
-    /// Valideert het huidige access token en vernieuwt het indien nodig.
-    /// Geeft het geldige access token terug, of <c>null</c> als refresh mislukt.
+    /// Geeft een geldig access token terug.
+    /// Vernieuwt automatisch als het token verlopen is of binnenkort verloopt.
+    /// Geeft null terug als tokens nog niet geladen zijn of refresh mislukt.
     /// </summary>
     public async Task<string?> GetGeldigTokenAsync(CancellationToken ct = default)
     {
@@ -64,7 +66,6 @@ public sealed class TokenService(
 
             if (!response.IsSuccessStatusCode)
             {
-                // Lees de response body voor directe diagnose in de logs
                 var fout = await response.Content.ReadAsStringAsync(ct);
                 logger.LogWarning(
                     "Token refresh mislukt — Keycloak antwoordde met {StatusCode}: {Fout}.",

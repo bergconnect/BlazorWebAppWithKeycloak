@@ -1,6 +1,7 @@
-using BlazorWebAppWithKeycloak.Auth;
 using BlazorWebAppWithKeycloak.Components;
 using BlazorWebAppWithKeycloak.Services;
+using Keycloak.Auth.Blazor;
+using Keycloak.Auth.Blazor.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 
@@ -10,8 +11,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// ─── Authenticatie & autorisatie ─────────────────────────────────────────────
-builder.Services.AddKeycloakAuthentication(builder.Environment);
+// ─── Keycloak authenticatie ───────────────────────────────────────────────────
+// Registreert OIDC, cookie, TokenProvider, TokenService en BearerTokenHandler.
+// Leest configuratie uit de sectie "Keycloak" in appsettings.json.
+builder.Services.AddKeycloakBlazorAuth(builder.Environment);
 
 // ─── Data Protection ─────────────────────────────────────────────────────────
 var keysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/app/keys";
@@ -21,14 +24,7 @@ builder.Services
     .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
     .SetApplicationName("BlazorWebAppWithKeycloak");
 
-// ─── Token services ───────────────────────────────────────────────────────────
-// TokenProvider: scoped — houdt tokens bij per Blazor circuit
-// TokenService:  scoped — voert refresh uit bij Keycloak
-// BearerTokenHandler: scoped — laadt tokens, valideert en voegt Bearer header toe
-builder.Services.AddScoped<TokenProvider>();
-builder.Services.AddScoped<TokenService>();
-builder.Services.AddScoped<BearerTokenHandler>();
-
+// ─── API Client ───────────────────────────────────────────────────────────────
 builder.Services
     .AddHttpClient<TodoApiClient>(client =>
     {
@@ -39,16 +35,12 @@ builder.Services
     .AddHttpMessageHandler<BearerTokenHandler>();
 
 // ─── Forwarded Headers (alleen productie) ────────────────────────────────────
-// Verwerk X-Forwarded-Proto van de reverse proxy zodat ASP.NET Core
-// https://<app-domein> als basis-URL gebruikt voor redirect URIs.
-// Lokaal (Development) is er geen proxy en worden deze headers niet ingeschakeld.
 if (!builder.Environment.IsDevelopment())
 {
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders =
             ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        // Vertrouw alle proxies in het interne netwerk.
         options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
     });
@@ -59,8 +51,6 @@ var app = builder.Build();
 // ─── Middleware pipeline ──────────────────────────────────────────────────────
 if (!app.Environment.IsDevelopment())
 {
-    // Forwarded headers EERST verwerken zodat alle volgende middleware
-    // de correcte protocol- en host-informatie ziet.
     app.UseForwardedHeaders();
     app.UseExceptionHandler("/Error");
 }
@@ -75,9 +65,9 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
-
 // ─── Endpoints ────────────────────────────────────────────────────────────────
-app.MapAuthEndpoints();
+// Registreert /login en /logout via de Keycloak library
+app.MapKeycloakAuthEndpoints();
 
 // ─── Blazor ───────────────────────────────────────────────────────────────────
 app.MapRazorComponents<App>()

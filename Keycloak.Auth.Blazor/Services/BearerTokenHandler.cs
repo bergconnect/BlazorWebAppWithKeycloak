@@ -1,10 +1,12 @@
-namespace BlazorWebAppWithKeycloak.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Http;
+namespace Keycloak.Auth.Blazor.Services;
 
 /// <summary>
 /// DelegatingHandler die bij elke uitgaande HTTP-request:
 /// <list type="number">
 ///   <item>Tokens laadt vanuit HttpContext als die beschikbaar is (pre-render fase)</item>
-///   <item>Het access token valideert en vernieuwt via TokenService indien nodig</item>
+///   <item>Het access token valideert en vernieuwt via <see cref="TokenService"/> indien nodig</item>
 ///   <item>Het geldige token als Authorization Bearer header toevoegt</item>
 /// </list>
 /// </summary>
@@ -20,8 +22,6 @@ public sealed class BearerTokenHandler(
         CancellationToken  cancellationToken)
     {
         // Stap 1 — tokens laden vanuit HttpContext (alleen beschikbaar in pre-render fase)
-        // IsGeladen is false zolang er nog geen tokens zijn — ook na een eerdere
-        // mislukte poging waarbij HttpContext null was.
         var httpContext = httpContextAccessor.HttpContext;
         if (httpContext is not null && !tokenProvider.IsGeladen)
             await tokenProvider.LaadVanuitHttpContextAsync(httpContext);
@@ -37,8 +37,6 @@ public sealed class BearerTokenHandler(
             return await base.SendAsync(request, cancellationToken);
         }
 
-        // Tokens nog niet geladen (circuit-fase vóór eerste pre-render)
-        // of sessie verlopen — geef 401 terug zodat de UI dit kan afhandelen
         logger.LogWarning(
             "Geen geldig access token voor {Method} {Uri}. IsGeladen={IsGeladen}.",
             request.Method, request.RequestUri, tokenProvider.IsGeladen);

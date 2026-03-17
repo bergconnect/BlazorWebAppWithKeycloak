@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace BlazorWebAppWithKeycloak.API.Auth;
+namespace Keycloak.Auth.Api;
+
+// ── Configuratie ──────────────────────────────────────────────────────────────
 
 /// <summary>
 /// Sterk-getypeerde configuratie voor de Keycloak JWT-validatie.
@@ -31,15 +33,10 @@ public sealed class KeycloakOptions
     /// </summary>
     public string? MetadataAddress { get; init; }
 
-    /// <summary>
-    /// De Client ID waarvoor tokens gevalideerd worden (audience-check).
-    /// </summary>
+    /// <summary>De Client ID waarvoor tokens gevalideerd worden (audience-check).</summary>
     [Required(AllowEmptyStrings = false)]
     public string ClientId { get; init; } = string.Empty;
 
-    /// <summary>
-    /// HTTPS vereisen voor de metadata endpoint.
-    /// Zet op <c>true</c> in productie.
-    /// </summary>
+    /// <summary>HTTPS vereisen voor de metadata endpoint. Zet op true in productie.</summary>
     public bool RequireHttpsMetadata { get; init; } = false;
 }

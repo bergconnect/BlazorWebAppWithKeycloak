@@ -1,12 +1,18 @@
-using BlazorWebAppWithKeycloak.API.Auth;
 using BlazorWebAppWithKeycloak.API.Data;
 using BlazorWebAppWithKeycloak.API.Extensions;
+using Keycloak.Auth.Api;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ─── Authenticatie & autorisatie ─────────────────────────────────────────────
-builder.Services.AddKeycloakJwtAuthentication();
+// ─── Keycloak JWT authenticatie ───────────────────────────────────────────────
+// Registreert JWT Bearer-validatie en de UserRole policy.
+// Leest configuratie uit de sectie "Keycloak" in appsettings.json.
+// Optioneel: geef extra policies mee via de lambda.
+builder.Services.AddKeycloakApiAuth(options =>
+{
+    options.AddPolicy("AdminRole", policy => policy.RequireRole("admin"));
+});
 
 // ─── EF Core — SQLite ─────────────────────────────────────────────────────────
 builder.Services.AddDbContext<TodoDbContext>(options =>
@@ -20,10 +26,6 @@ builder.Services.AddOpenApi();
 var app = builder.Build();
 
 // ─── Database aanmaken bij opstarten ─────────────────────────────────────────
-// EnsureCreatedAsync maakt de database en alle tabellen aan vanuit het model
-// als ze nog niet bestaan. Geen migratiebestanden nodig.
-// Let op: bij schemawijzigingen de database verwijderen en opnieuw opstarten,
-// of overstappen op migraties voor behoud van bestaande data.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<TodoDbContext>();

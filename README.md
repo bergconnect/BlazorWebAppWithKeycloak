@@ -306,17 +306,6 @@ Registreert JWT Bearer-authenticatie via `builder.Services.AddKeycloakJwtAuthent
 
 ---
 
-### HelloEndpointExtensions
-
-`Extensions/HelloEndpointExtensions.cs`
-
-Extension method op `IEndpointRouteBuilder`. Registreert alle Hello World-endpoints via `app.MapHelloEndpoints()` in `Program.cs`. Dit patroon is consistent met `MapAuthEndpoints()` in de Blazor app en houdt `Program.cs` overzichtelijk naarmate het aantal endpoints groeit.
-
-| Endpoint     | Authenticatie | Toelichting                            |
-|--------------|---------------|----------------------------------------|
-| `GET /api/hello` | Policy `UserRole` | Retourneert gebruikersnaam en tijdstip |
-| `GET /api/admin` | Policy `AdminRole` | Retourneert gebruikersnaam en tijdstip — alleen voor admins |
-
 ---
 
 ## Blazor-integratie
@@ -384,16 +373,6 @@ Scoped `DelegatingHandler` die bij elke uitgaande API-request drie stappen uitvo
 
 Werkt in beide Blazor-fasen: pre-render (HttpContext beschikbaar) en circuit/SignalR (tokens al in `TokenProvider`).
 
-### HelloWorldApiClient
-
-`Services/HelloWorldApiClient.cs`
-
-Typed `HttpClient` voor de Hello World en Admin endpoints.
-
-| Methode | Endpoint | Vereiste rol |
-|---------|----------|--------------|
-| `GetHelloAsync()` | `GET /api/hello` | `user` |
-| `GetAdminAsync()` | `GET /api/admin` | `admin` |
 
 ### TodoApiClient
 
@@ -416,10 +395,6 @@ Geregistreerd in `Program.cs`:
 builder.Services.AddScoped<TokenProvider>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<BearerTokenHandler>();
-
-builder.Services
-    .AddHttpClient<HelloWorldApiClient>(...)
-    .AddHttpMessageHandler<BearerTokenHandler>();
 
 builder.Services
     .AddHttpClient<TodoApiClient>(...)
@@ -671,6 +646,15 @@ API valideert token (issuer, audience, handtekening, rol)
 ### Uitloggen
 
 ```
-/logout → SignOutAsync(Cookie) → lokale sessie beëindigd
-Keycloak SSO-sessie blijft actief
+Gebruiker klikt Uitloggen
+        │
+        ▼
+/logout → SignOutAsync(Cookie)    → lokale authenticatiecookie verwijderd
+        → SignOutAsync(OpenIdConnect) → Keycloak SSO-sessie beëindigd
+        │
+        ▼
+Redirect naar Keycloak end_session endpoint
+        │
+        ▼
+Redirect terug naar applicatie
 ```

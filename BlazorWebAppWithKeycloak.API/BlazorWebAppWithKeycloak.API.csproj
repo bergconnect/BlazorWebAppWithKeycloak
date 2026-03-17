@@ -10,9 +10,12 @@
        zodat deze waarden niet in versiebeheer hoeven te staan. -->
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.OpenApi"        Version="10.0.5" />
+		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
-		<ProjectReference Include="..\Keycloak.Auth.Api\Keycloak.Auth.Api.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\Keycloak.Auth.API\Keycloak.Auth.API.csproj" />
 	</ItemGroup>
 
 </Project>
